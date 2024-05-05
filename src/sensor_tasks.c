@@ -42,15 +42,18 @@ extern SemaphoreHandle_t xI2C0Semaphore;
 
 // Function handle for task notification from Timer interrupt
 TaskHandle_t xOpt3001ReadHandle;
+TaskHandle_t xIMUReadHandle;
 
 // Configuration for the OPT3001 sensor
 static void prvConfigureOPT3001Sensor( void );
 
-// Configuration for the HW Timer 7A
+// Configuration for the HW Timer 6A and 7A
+static void prvConfigureHWTimer6A( void );
 static void prvConfigureHWTimer7A( void );
 
 // Task for reading the opt3001 sensor
 static void vOpt3001Read( void *pvParameters );
+static void vIMURead( void *pvParameters );
 
 // Called by main function to setup Sensor Tasks
 void vSensorTaskSetup( void );
@@ -69,6 +72,14 @@ void vSensorTaskSetup( void )
                  NULL,
                  tskIDLE_PRIORITY + 1,
                  &xOpt3001ReadHandle);
+    
+    // Create the task to read the IMU sensor
+    xTaskCreate( vIMURead,
+                 "IMU Read Task",
+                 configMINIMAL_STACK_SIZE,
+                 NULL,
+                 tskIDLE_PRIORITY + 1,
+                 &xIMUReadHandle);
     
 }
 /*-----------------------------------------------------------*/
@@ -92,11 +103,18 @@ static void vOpt3001Read( void *pvParameters )
 
     // Enable the Timer 7A
     TimerEnable(TIMER7_BASE, TIMER_A);
+    // TickType_t xLastWakeTime = xTaskGetTickCount();
     for( ;; )
     {
         // Wait for notification from Timer7A interrupt
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         {
+            // // Calc time passed
+            // TickType_t xCurrentTime = xTaskGetTickCount();
+            // TickType_t xElapsedTime = (xCurrentTime - xLastWakeTime) * portTICK_PERIOD_MS;
+            // UARTprintf("Time Passed: %d ms\n", xElapsedTime);
+            // xLastWakeTime = xCurrentTime;
+
             // // debug print
             // UARTprintf("Optical Read Task\n");
 
@@ -117,8 +135,33 @@ static void vOpt3001Read( void *pvParameters )
                 }
                 int average = sum / 10;
                 // UARTprintf("Filtered Lux: %5d\n", average);
-
             }
+        }
+    }
+}
+
+// Periodic IMU Read Task
+static void vIMURead( void *pvParameters )
+{
+    // Configure Timer 6A
+    prvConfigureHWTimer6A();
+
+    // Enable the Timer 6A
+    TimerEnable(TIMER6_BASE, TIMER_A);
+    // TickType_t xLastWakeTime = xTaskGetTickCount();
+    for( ;; )
+    {
+        // // Calc time passed
+        // TickType_t xCurrentTime = xTaskGetTickCount();
+        // TickType_t xElapsedTime = (xCurrentTime - xLastWakeTime) * portTICK_PERIOD_MS;
+        // UARTprintf("Time Passed: %d ms\n", xElapsedTime);
+        // xLastWakeTime = xCurrentTime;
+
+        // Wait for notification from Timer7B interrupt
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        {
+            // // debug print
+            // UARTprintf("IMU Read Task\n");
         }
     }
 }
@@ -167,6 +210,27 @@ static void prvConfigureOPT3001Sensor( void )
         sensorOpt3001Enable(true);
 }
 
+static void prvConfigureHWTimer6A( void )
+{
+    /* The Timer 6 peripheral must be enabled for use. */
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER6);
+
+    /* Configure Timer 6 in full-width periodic mode. */
+    TimerConfigure(TIMER6_BASE, TIMER_CFG_PERIODIC);
+
+    /* Set the Timer 6A load value to run at 100 Hz. */
+    TimerLoadSet(TIMER6_BASE, TIMER_A, configCPU_CLOCK_HZ / 100);
+
+    /* Configure the Timer 6A interrupt for timeout. */
+    TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
+
+    /* Enable the Timer 6A interrupt in the NVIC. */
+    IntEnable(INT_TIMER6A);
+
+    // /* Enable global interrupts in the NVIC. */
+    IntMasterEnable();
+}
+
 static void prvConfigureHWTimer7A( void )
 {
     /* The Timer 7 peripheral must be enabled for use. */
@@ -206,6 +270,20 @@ void xI2C0Handler( void )
     portYIELD_FROM_ISR( xI2C0TaskWoken );
 }
 
+void xTimer6AHandler( void )
+{
+    /* Clear the hardware interrupt flag for Timer 7B. */
+    TimerIntClear(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
+
+    // Notify the task to read the IMU sensor
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(xIMUReadHandle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+
+    // debug print
+    // UARTprintf("Timer 6A Interrupt\n");
+}
+
 void xTimer7AHandler( void )
 {
     /* Clear the hardware interrupt flag for Timer 7A. */
@@ -219,6 +297,8 @@ void xTimer7AHandler( void )
     // debug print
     // UARTprintf("Timer 7A Interrupt\n");
 }
+
+
 
 // Leave this empty
 void vApplicationTickHook( void )
