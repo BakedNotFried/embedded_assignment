@@ -56,9 +56,10 @@ extern void vSensorTaskSetup( void );
 /*-----------------------------------------------------------*/
 int main( void )
 {
-    /* Prepare the hardware to run this demo. */
+    /*                   Shared Main Setup                     */
     prvSetupHardware();
 
+    /*                   Sensor Main Setup (Cal)               */
     // Semaphore for I2C non-blocking read/write
     xI2C0Semaphore = xSemaphoreCreateBinary();
 
@@ -68,8 +69,22 @@ int main( void )
         vSensorTaskSetup();
 
         /* Start the tasks running. */
-        vTaskStartScheduler();
     }
+    /*-----------------------------------------------------------*/
+
+
+    /*                   Motor Main Setup (Jim)                  */
+
+    /*-----------------------------------------------------------*/
+
+
+    /*                   GUI Main Setup (Nikolaj)                */
+
+    /*-----------------------------------------------------------*/
+
+    // Start the scheduler
+    vTaskStartScheduler();
+    // Should never reach here
     for( ;; );
 }
 
