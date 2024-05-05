@@ -44,6 +44,15 @@ extern SemaphoreHandle_t xI2C0Semaphore;
 TaskHandle_t xOpt3001ReadHandle;
 TaskHandle_t xIMUReadHandle;
 
+// Queues for Sensor Data Publishing
+QueueHandle_t xOPT3001Queue = NULL;
+
+// Structs for Sensor Data Publishing
+struct OPT3001Message
+{
+    uint32_t ulfilteredLux;
+} xOPT3001Message;
+
 // Configuration for the OPT3001 sensor
 static void prvConfigureOPT3001Sensor( void );
 
@@ -52,7 +61,7 @@ static void prvConfigureHWTimer6A( void );
 static void prvConfigureHWTimer7A( void );
 
 // Task for reading the opt3001 sensor
-static void vOpt3001Read( void *pvParameters );
+static void vOPT3001Read( void *pvParameters );
 static void vIMURead( void *pvParameters );
 
 // Called by main function to setup Sensor Tasks
@@ -62,11 +71,11 @@ void vSensorTaskSetup( void );
 
 void vSensorTaskSetup( void )
 {
-    // // Create queue
-    // xStructQueue = xQueueCreate(mainQUEUE_LENGTH, sizeof( xOpticalMessage ) );
+    // Create queue
+    xOPT3001Queue = xQueueCreate(1, sizeof(struct OPT3001Message));
 
     // Create the task to read the optical sensor
-    xTaskCreate( vOpt3001Read,
+    xTaskCreate( vOPT3001Read,
                  "Opt 3001 Read Task",
                  configMINIMAL_STACK_SIZE,
                  NULL,
@@ -84,7 +93,7 @@ void vSensorTaskSetup( void )
 }
 /*-----------------------------------------------------------*/
 // Periodic Optical Read Task
-static void vOpt3001Read( void *pvParameters )
+static void vOPT3001Read( void *pvParameters )
 {
     // Configure Optical Sensor
     // Note if using semaphores for read/write, they need to be called within a RTOS task
@@ -98,8 +107,11 @@ static void vOpt3001Read( void *pvParameters )
     uint16_t rawData = 0;
     bool success;
     // Array for filtered values
-    int filteredLux[10] = {0};
+    int lux_array[10] = {0};
     int index = 0;
+
+    // Queue setup
+    struct OPT3001Message xOPT3001Message;
 
     // Enable the Timer 7A
     TimerEnable(TIMER7_BASE, TIMER_A);
@@ -115,26 +127,26 @@ static void vOpt3001Read( void *pvParameters )
             // UARTprintf("Time Passed: %d ms\n", xElapsedTime);
             // xLastWakeTime = xCurrentTime;
 
-            // // debug print
-            // UARTprintf("Optical Read Task\n");
-
             //Read and convert OPT values
             success = sensorOpt3001Read(&rawData);
 
             if (success) {
                 sensorOpt3001Convert(rawData, &convertedLux);
                 int lux_int = (int)convertedLux;
-                // UARTprintf("Lux: %5d\n", lux_int);
 
-                // Filtered values
-                filteredLux[index] = lux_int;
+                // Filter values
+                lux_array[index] = lux_int;
                 index = (index + 1) % 10;
                 int sum = 0;
                 for (int i = 0; i < 10; i++) {
-                    sum += filteredLux[i];
+                    sum += lux_array[i];
                 }
-                int average = sum / 10;
-                // UARTprintf("Filtered Lux: %5d\n", average);
+                int filtered_lux = sum / 10;
+                // UARTprintf("Filtered Lux: %5d\n", filtered_lux);
+
+                // Publish to Queue
+                xOPT3001Message.ulfilteredLux = filtered_lux;
+                xQueueSend(xOPT3001Queue, ( void * ) &xOPT3001Message, ( TickType_t ) 0 );
             }
         }
     }
@@ -160,8 +172,6 @@ static void vIMURead( void *pvParameters )
         // Wait for notification from Timer7B interrupt
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         {
-            // // debug print
-            // UARTprintf("IMU Read Task\n");
         }
     }
 }
