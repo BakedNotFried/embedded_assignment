@@ -29,22 +29,27 @@
 #include "drivers/opt3001.h"
 #include "driverlib/fpu.h"
 
-/* Display includes. */
-#include "grlib/grlib.h"
-#include "grlib/widget.h"
-#include "grlib/canvas.h"
-#include "drivers/Kentec320x240x16_ssd2119_spi.h"
-#include "drivers/touch.h"
+// /* Display includes. */
+// #include "grlib/grlib.h"
+// #include "grlib/widget.h"
+// #include "grlib/canvas.h"
+// #include "drivers/Kentec320x240x16_ssd2119_spi.h"
+// #include "drivers/touch.h"
 
 /*-----------------------------------------------------------*/
-// Binary Semaphore for the Optical Sensor and I2C Read
+// Binary Semaphore for I2C0 non-blocking read/write
 extern SemaphoreHandle_t xI2C0Semaphore;
-extern SemaphoreHandle_t xOpticReadSemaphore;
+
+// Function handle for task notification from Timer interrupt
+TaskHandle_t xOpt3001ReadHandle;
 
 // Configuration for the OPT3001 sensor
 static void prvConfigureOPT3001Sensor( void );
 
-// Task for reading and displaying optical sensor values
+// Configuration for the HW Timer 7A
+static void prvConfigureHWTimer7A( void );
+
+// Task for reading the opt3001 sensor
 static void vOpt3001Read( void *pvParameters );
 
 // Called by main function to setup Sensor Tasks
@@ -63,7 +68,7 @@ void vSensorTaskSetup( void )
                  configMINIMAL_STACK_SIZE,
                  NULL,
                  tskIDLE_PRIORITY + 1,
-                 NULL );
+                 &xOpt3001ReadHandle);
     
 }
 /*-----------------------------------------------------------*/
@@ -74,6 +79,9 @@ static void vOpt3001Read( void *pvParameters )
     // Note if using semaphores for read/write, they need to be called within a RTOS task
     prvConfigureOPT3001Sensor();
 
+    // Configure Timer 7A
+    prvConfigureHWTimer7A();
+
     // Vars for OPT3001 sensor read
     float convertedLux = 0;
     uint16_t rawData = 0;
@@ -82,10 +90,12 @@ static void vOpt3001Read( void *pvParameters )
     int filteredLux[10] = {0};
     int index = 0;
 
+    // Enable the Timer 7A
+    TimerEnable(TIMER7_BASE, TIMER_A);
     for( ;; )
     {
-        // wait on semaphore
-        if (xSemaphoreTake(xOpticReadSemaphore, portMAX_DELAY) == pdPASS)
+        // Wait for notification from Timer7A interrupt
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         {
             // // debug print
             // UARTprintf("Optical Read Task\n");
@@ -157,6 +167,27 @@ static void prvConfigureOPT3001Sensor( void )
         sensorOpt3001Enable(true);
 }
 
+static void prvConfigureHWTimer7A( void )
+{
+    /* The Timer 7 peripheral must be enabled for use. */
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER7);
+
+    /* Configure Timer 7 in full-width periodic mode. */
+    TimerConfigure(TIMER7_BASE, TIMER_CFG_PERIODIC);
+
+    /* Set the Timer 7A load value to run at 2 Hz. */
+    TimerLoadSet(TIMER7_BASE, TIMER_A, configCPU_CLOCK_HZ / 2);
+
+    /* Configure the Timer 7A interrupt for timeout. */
+    TimerIntEnable(TIMER7_BASE, TIMER_TIMA_TIMEOUT);
+
+    /* Enable the Timer 7A interrupt in the NVIC. */
+    IntEnable(INT_TIMER7A);
+
+    // /* Enable global interrupts in the NVIC. */
+    IntMasterEnable();
+}
+
 /*-----------------------------------------------------------*/
 // Interrupt Handlers
 void xI2C0Handler( void )
@@ -173,6 +204,20 @@ void xI2C0Handler( void )
     xI2C0TaskWoken = pdFALSE;
     xSemaphoreGiveFromISR( xI2C0Semaphore, &xI2C0TaskWoken );
     portYIELD_FROM_ISR( xI2C0TaskWoken );
+}
+
+void xTimer7AHandler( void )
+{
+    /* Clear the hardware interrupt flag for Timer 7A. */
+    TimerIntClear(TIMER7_BASE, TIMER_TIMA_TIMEOUT);
+
+    // Notify the task to read the OPT3001 sensor
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(xOpt3001ReadHandle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+
+    // debug print
+    // UARTprintf("Timer 7A Interrupt\n");
 }
 
 // Leave this empty
