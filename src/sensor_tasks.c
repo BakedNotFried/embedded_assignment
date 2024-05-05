@@ -45,7 +45,7 @@ extern SemaphoreHandle_t xOpticReadSemaphore;
 static void prvConfigureOPT3001Sensor( void );
 
 // Task for reading and displaying optical sensor values
-static void vPeriodicOpticRead( void *pvParameters );
+static void vOpt3001Read( void *pvParameters );
 
 // Called by main function to setup Sensor Tasks
 void vSensorTaskSetup( void );
@@ -72,7 +72,7 @@ static void vOpt3001Read( void *pvParameters )
 {
     // Configure Optical Sensor
     // Note if using semaphores for read/write, they need to be called within a RTOS task
-    prvConfigureOptical();
+    prvConfigureOPT3001Sensor();
 
     // Vars for OPT3001 sensor read
     float convertedLux = 0;

@@ -64,6 +64,9 @@
 #define configUSE_MUTEXES                   1
 #define configUSE_RECURSIVE_MUTEXES         1
 #define configCHECK_FOR_STACK_OVERFLOW      2
+#define configUSE_TIMERS                    1
+#define configTIMER_TASK_PRIORITY           ( 2 )
+#define configTIMER_TASK_STACK_DEPTH        ( ( unsigned short ) 200 )
 
 //#define configMAX_PRIORITIES                ( ( unsigned portBASE_TYPE ) 16 )
 #define configMAX_PRIORITIES ( 16 )

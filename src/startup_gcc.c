@@ -45,6 +45,8 @@ extern void xPortPendSVHandler(void);
 extern void vPortSVCHandler(void);
 extern void xPortSysTickHandler(void);
 extern void xI2C0Handler(void);
+extern void xTimer7AHandler(void);
+extern void xTimer7BHandler(void);
 
 //*****************************************************************************
 //
@@ -186,8 +188,8 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // LCD Controller 0
     IntDefaultHandler,                      // Timer 6 subtimer A
     IntDefaultHandler,                      // Timer 6 subtimer B
-    IntDefaultHandler,                      // Timer 7 subtimer A
-    IntDefaultHandler,                      // Timer 7 subtimer B
+    xTimer7AHandler,                      // Timer 7 subtimer A
+    xTimer7BHandler,                      // Timer 7 subtimer B
     IntDefaultHandler,                      // I2C6 Master and Slave
     IntDefaultHandler,                      // I2C7 Master and Slave
     IntDefaultHandler,                      // HIM Scan Matrix Keyboard 0
