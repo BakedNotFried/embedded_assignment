@@ -29,6 +29,11 @@
 #include "drivers/opt3001.h"
 #include "driverlib/fpu.h"
 
+// BMI include
+#include "drivers/i2cBMIDriver.h"
+#include "drivers/bmi160.h"
+#include "drivers/bmi160_defs.h"
+
 // /* Display includes. */
 // #include "grlib/grlib.h"
 // #include "grlib/widget.h"
@@ -39,6 +44,11 @@
 /*-----------------------------------------------------------*/
 // Binary Semaphore for I2C0 non-blocking read/write
 extern SemaphoreHandle_t xI2C0Semaphore;
+extern SemaphoreHandle_t xI2C0BMISemaphore;
+
+// enum for checking which sensor is using the I2C bus
+enum sensorType {NONE, OPT3001, BMI160};
+volatile enum sensorType g_I2C_flag = NONE;
 
 // Function handle for task notification from Timer interrupt
 TaskHandle_t xOpt3001ReadHandle;
@@ -53,8 +63,15 @@ struct OPT3001Message
     uint32_t ulfilteredLux;
 } xOPT3001Message;
 
+// BMI160 Setup
+struct bmi160_dev bmi160_handle;
+struct bmi160_sensor_data accel;
+
 // Configuration for the OPT3001 sensor
 static void prvConfigureOPT3001Sensor( void );
+
+// Configuration for the I2C0
+static void prvConfigureI2C0( void );
 
 // Configuration for the HW Timer 6A and 7A
 static void prvConfigureHWTimer6A( void );
@@ -87,7 +104,7 @@ void vSensorTaskSetup( void )
                  "IMU Read Task",
                  configMINIMAL_STACK_SIZE,
                  NULL,
-                 tskIDLE_PRIORITY + 1,
+                 tskIDLE_PRIORITY + 2,
                  &xIMUReadHandle);
     
 }
@@ -147,6 +164,12 @@ static void vOPT3001Read( void *pvParameters )
                 // Publish to Queue
                 xOPT3001Message.ulfilteredLux = filtered_lux;
                 xQueueSend(xOPT3001Queue, ( void * ) &xOPT3001Message, ( TickType_t ) 0 );
+
+                // Get the sensor configuration
+                uint16_t config;
+                readI2C(0x47, 0x7F, (uint8_t *)&config);
+                config = (config << 8) | (config>>8 &0xFF);
+                // UARTprintf("OPT3001 Config: 0x%04x\n", config);
             }
         }
     }
@@ -155,6 +178,37 @@ static void vOPT3001Read( void *pvParameters )
 // Periodic IMU Read Task
 static void vIMURead( void *pvParameters )
 {
+    // // Configure I2C0
+    prvConfigureI2C0();
+
+    // Setup BMI
+    bmi160_handle.id = 0x69;
+    bmi160_handle.intf = BMI160_I2C_INTF;
+    bmi160_handle.read = readI2CBMI;
+    // Vars for accel x,y,z
+    uint8_t x_lsb = 0x00;
+    uint8_t x_msb = 0x00;
+    uint8_t y_lsb = 0x00;
+    uint8_t y_msb = 0x00;
+    uint8_t z_lsb = 0x00;
+    uint8_t z_msb = 0x00;
+    int16_t int_x = 0x0000;
+    float x = 0;
+    int16_t int_y = 0x0000;
+    float y = 0;
+    int16_t int_z = 0x0000;
+    float z = 0;
+    uint8_t normal_accl_mode = 0x11;
+    writeI2CBMI(0x69, BMI160_COMMAND_REG_ADDR, &normal_accl_mode);
+    vTaskDelay(200);
+
+    // soft reset
+    // uint8_t reset = BMI160_SOFT_RESET_CMD;
+    // writeI2CBMI(0x69, BMI160_COMMAND_REG_ADDR, &reset);
+    // vTaskDelay(200);
+
+    // bmi160_get_regs(BMI160_CHIP_ID_ADDR, &bmi1
+
     // Configure Timer 6A
     prvConfigureHWTimer6A();
 
@@ -169,9 +223,43 @@ static void vIMURead( void *pvParameters )
         // UARTprintf("Time Passed: %d ms\n", xElapsedTime);
         // xLastWakeTime = xCurrentTime;
 
+
         // Wait for notification from Timer7B interrupt
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         {
+            // UARTprintf("IMU Read Task\n");
+            // readI2CBMI(0x69, BMI160_CHIP_ID_ADDR, &bmi160_handle.chip_id);
+            // UARTprintf("BMI160 Config 2: 0x%02x\n", bmi160_handle.chip_id);
+
+            // readI2CBMI(0x69, 0x03, &bmi160_handle.chip_id);
+            // UARTprintf("BMI160 Config 2: 0x%02x\n", bmi160_handle.chip_id);
+
+            // readI2CBMI(0x69, 0x1B, &bmi160_handle.chip_id);
+            // UARTprintf("BMI160 Config 2: 0x%02x\n", bmi160_handle.chip_id);
+
+            // readI2CBMI(0x69, 0x41, &bmi160_handle.chip_id);
+            // UARTprintf("BMI160 Config 2: 0x%02x\n", bmi160_handle.chip_id);
+
+            // Get Sensor Data
+            readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR, &x_lsb);
+            readI2CBMI(0x69, 0x13, &x_msb);
+            int_x = (int16_t)((x_msb << 8) | x_lsb);
+            float x = ((float)int_x) / 16384.0;
+            UARTprintf("BMI160 Accel X: %d\n", (int32_t)(x*10000));
+
+            readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 2, &y_lsb);
+            readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 3, &y_msb);
+            int_y = (int16_t)((y_msb << 8) | y_lsb);
+            float y = ((float)int_y) / 16384.0;
+            UARTprintf("BMI160 Accel Y: %d\n", (int32_t)(y*10000));
+
+            readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 4, &z_lsb);
+            readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 5, &z_msb);
+            int_z = (int16_t)((z_msb << 8) | z_lsb);
+            float z = ((float)int_z) / 16384.0;
+            UARTprintf("BMI160 Accel Z: %d\n", int_z);
+            // UARTprintf("BMI160 Accel Z: %d\n", (int32_t)(z*10000));
+            
         }
     }
 }
@@ -220,6 +308,33 @@ static void prvConfigureOPT3001Sensor( void )
         sensorOpt3001Enable(true);
 }
 
+static void prvConfigureI2C0( void )
+{
+        // The I2C0 peripheral must be enabled before use.
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+
+        // Configure the pin muxing for I2C0 functions on port B2 and B3.
+        // This step is not necessary if your part does not support pin muxing.
+        GPIOPinConfigure(GPIO_PB2_I2C0SCL);
+        GPIOPinConfigure(GPIO_PB3_I2C0SDA);
+
+        // Select the I2C function for these pins.  This function will also
+        // configure the GPIO pins pins for I2C operation, setting them to
+        // open-drain operation with weak pull-ups.  Consult the data sheet
+        // to see which functions are allocated per pin.
+        GPIOPinTypeI2CSCL(GPIO_PORTB_BASE, GPIO_PIN_2);
+        GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_3);
+        I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false);
+
+        // Interrupt Configuration for I2C
+        IntEnable(INT_I2C0);
+        I2CMasterIntEnable(I2C0_BASE);
+
+        // // Enable Master interrupt
+        IntMasterEnable();
+}
+
 static void prvConfigureHWTimer6A( void )
 {
     /* The Timer 6 peripheral must be enabled for use. */
@@ -229,7 +344,7 @@ static void prvConfigureHWTimer6A( void )
     TimerConfigure(TIMER6_BASE, TIMER_CFG_PERIODIC);
 
     /* Set the Timer 6A load value to run at 100 Hz. */
-    TimerLoadSet(TIMER6_BASE, TIMER_A, configCPU_CLOCK_HZ / 100);
+    TimerLoadSet(TIMER6_BASE, TIMER_A, configCPU_CLOCK_HZ / 2);
 
     /* Configure the Timer 6A interrupt for timeout. */
     TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
@@ -269,15 +384,33 @@ void xI2C0Handler( void )
     /* Clear the interrupt. */
     I2CMasterIntClear(I2C0_BASE);
 
+    // // Check which sensor is using the I2C bus
+    if (g_I2C_flag == OPT3001)
+    {
+        // Give the semaphore to unblock the OPT3001 I2C read
+        BaseType_t xI2C0TaskWoken = pdFALSE;
+        xI2C0TaskWoken = pdFALSE;
+        xSemaphoreGiveFromISR( xI2C0Semaphore, &xI2C0TaskWoken );
+        portYIELD_FROM_ISR( xI2C0TaskWoken );
+    }
+    else if (g_I2C_flag == BMI160)
+    {
+        // Give the semaphore to unblock
+        BaseType_t xI2C0TaskWoken = pdFALSE;
+        xI2C0TaskWoken = pdFALSE;
+        xSemaphoreGiveFromISR( xI2C0BMISemaphore, &xI2C0TaskWoken );
+        portYIELD_FROM_ISR( xI2C0TaskWoken );
+    }
+
     // // Get status of the I2C
     // uint32_t ui32Status;
     // ui32Status = I2CMasterIntStatus(I2C0_BASE, true);
 
     // Give the semaphore to unblock the I2C read
-    BaseType_t xI2C0TaskWoken = pdFALSE;
-    xI2C0TaskWoken = pdFALSE;
-    xSemaphoreGiveFromISR( xI2C0Semaphore, &xI2C0TaskWoken );
-    portYIELD_FROM_ISR( xI2C0TaskWoken );
+    // BaseType_t xI2C0TaskWoken = pdFALSE;
+    // xI2C0TaskWoken = pdFALSE;
+    // xSemaphoreGiveFromISR( xI2C0Semaphore, &xI2C0TaskWoken );
+    // portYIELD_FROM_ISR( xI2C0TaskWoken );
 }
 
 void xTimer6AHandler( void )

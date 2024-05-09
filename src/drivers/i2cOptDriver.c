@@ -16,11 +16,14 @@
 #include "driverlib/sysctl.h"
 /* Kernel includes. */
 #include "FreeRTOS.h"
-#include "task.h"
 #include "semphr.h"
 
 // Semaphore for i2c non-blocking functionality
 extern SemaphoreHandle_t xI2C0Semaphore;
+
+// enum for checking which sensor is using the I2C bus
+enum sensorType {NONE, OPT3001, IMU};
+extern enum sensorType g_I2C_flag;
 
 /*
  * Sets slave address to ui8Addr
@@ -29,13 +32,15 @@ extern SemaphoreHandle_t xI2C0Semaphore;
  */
 bool writeI2C(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
 {
+    // Set Flag
+    g_I2C_flag = OPT3001;
+
     // Load device slave address
     I2CMasterSlaveAddrSet(I2C0_BASE, ui8Addr, false);
 
     // Place the character to be sent in the data register
     I2CMasterDataPut(I2C0_BASE, ui8Reg);
     I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-    // while(I2CMasterBusy(I2C0_BASE)) { }
     if (xSemaphoreTake(xI2C0Semaphore, portMAX_DELAY) == pdPASS)
     {
         // Send Data
@@ -43,7 +48,6 @@ bool writeI2C(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
         I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_CONT);
         
     }
-    // while(I2CMasterBusy(I2C0_BASE)) { }
     if (xSemaphoreTake(xI2C0Semaphore, portMAX_DELAY) == pdPASS)
     {
         I2CMasterDataPut(I2C0_BASE, data[1]);
@@ -51,13 +55,17 @@ bool writeI2C(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
     }
 
     // Delay until transmission completes
-    // while(I2CMasterBusBusy(I2C0_BASE)) { }
     if (xSemaphoreTake(xI2C0Semaphore, portMAX_DELAY) == pdPASS)
     {
+        // Set Flag
+        g_I2C_flag = NONE;
+        
         return true;
     }
+    // Set Flag
+    g_I2C_flag = NONE;
 
-    // return true;
+    return false;
 }
 
 
@@ -70,6 +78,9 @@ bool writeI2C(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
  */
 bool readI2C(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
 {
+    // Set Flag
+    g_I2C_flag = OPT3001;
+
     uint8_t byteA, byteB;
 
     // Load device slave address
@@ -106,8 +117,15 @@ bool readI2C(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
         data[0] = byteA;
         data[1] = byteB;
 
+        // Set flag
+        g_I2C_flag = NONE;
+
         return true;
     }
+    // Set flag
+    g_I2C_flag = NONE;
+
+    return false;
 }
 
 // /*

@@ -41,6 +41,7 @@ static void prvSetupHardware( void );
 /*                   Sensor Tasks Global Section             */
 // Global Semaphores
 SemaphoreHandle_t xI2C0Semaphore = NULL;
+SemaphoreHandle_t xI2C0BMISemaphore = NULL;
 
 // Functions for initializing tasks
 extern void vSensorTaskSetup( void );
@@ -54,6 +55,7 @@ extern void vSensorTaskSetup( void );
 
 /*-----------------------------------------------------------*/
 int main( void )
+
 {
     /*                   Shared Main Setup                     */
     prvSetupHardware();
@@ -61,8 +63,9 @@ int main( void )
     /*                   Sensor Main Setup (Cal)               */
     // Semaphore for I2C non-blocking read/write
     xI2C0Semaphore = xSemaphoreCreateBinary();
+    xI2C0BMISemaphore = xSemaphoreCreateBinary();
 
-    if ( (xI2C0Semaphore != NULL) )
+    if ( (xI2C0Semaphore != NULL) && (xI2C0BMISemaphore != NULL) )
     {
         // Create the tasks associated with sensor reading
         vSensorTaskSetup();

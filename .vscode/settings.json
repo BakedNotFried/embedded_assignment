@@ -1,7 +1,16 @@
 {
     "files.associations": {
         "stdbool.h": "c",
-        "freertos.h": "c"
+        "freertos.h": "c",
+        "i2c.h": "c",
+        "sysctl.h": "c",
+        "uartstdio.h": "c",
+        "bmi160_defs.h": "c",
+        "i2cbmidriver.h": "c",
+        "stdint.h": "c",
+        "semphr.h": "c",
+        "array": "c",
+        "string": "c"
     },
     "cmake.configureOnOpen": true
 }
