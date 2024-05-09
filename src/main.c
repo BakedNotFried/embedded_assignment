@@ -1,4 +1,3 @@
-/*
 /* Standard includes. */
 #include <stdio.h>
 #include <stdbool.h>
@@ -26,6 +25,14 @@
 #include "driverlib/debug.h"
 #include "driverlib/i2c.h"
 #include "drivers/opt3001.h"
+
+/*Motor includes*/
+#include "motor_config.h"
+#include <motorlib.h>
+#include "driverlib/adc.h"
+#include "motor_config.h"
+#include "driverlib/timer.h"
+
 /*-----------------------------------------------------------*/
 /*                         Shared Global Section             */
 /* The system clock frequency. */
@@ -41,9 +48,11 @@ static void prvSetupHardware( void );
 /*                   Sensor Tasks Global Section             */
 // Global Semaphores
 SemaphoreHandle_t xI2C0Semaphore = NULL;
+SemaphoreHandle_t xOpticReadSemaphore = NULL;
 
 // Functions for initializing tasks
 extern void vSensorTaskSetup( void );
+extern void vCreateMotorTask( void );
 
 /*-----------------------------------------------------------*/
 /*                   Motor Tasks Global Section              */
@@ -72,7 +81,7 @@ int main( void )
 
 
     /*                   Motor Main Setup (Jim)                  */
-
+        vCreateMotorTask();
     /*-----------------------------------------------------------*/
 
 

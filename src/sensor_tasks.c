@@ -39,7 +39,7 @@
 /*-----------------------------------------------------------*/
 // Binary Semaphore for the Optical Sensor and I2C Read
 extern SemaphoreHandle_t xI2C0Semaphore;
-extern SemaphoreHandle_t xOpticReadSemaphore;
+extern SemaphoreHandle_t xOpticReadSemaphore; //Added
 
 // Configuration for the OPT3001 sensor
 static void prvConfigureOPT3001Sensor( void );
@@ -179,3 +179,7 @@ void xI2C0Handler( void )
 void vApplicationTickHook( void )
 {
 }
+
+//These werent here? so i added them below to compile.
+void xTimer7AHandler(void){};
+void xTimer7BHandler(void){};
