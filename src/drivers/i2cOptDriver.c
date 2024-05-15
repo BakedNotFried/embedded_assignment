@@ -19,7 +19,7 @@
 #include "semphr.h"
 
 // Semaphore for i2c non-blocking functionality
-extern SemaphoreHandle_t xI2C0Semaphore;
+extern SemaphoreHandle_t xI2C0OPTSemaphore;
 
 // enum for checking which sensor is using the I2C bus
 enum sensorType {NONE, OPT3001, IMU};
@@ -41,21 +41,21 @@ bool writeI2C(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
     // Place the character to be sent in the data register
     I2CMasterDataPut(I2C0_BASE, ui8Reg);
     I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-    if (xSemaphoreTake(xI2C0Semaphore, portMAX_DELAY) == pdPASS)
+    if (xSemaphoreTake(xI2C0OPTSemaphore, portMAX_DELAY) == pdPASS)
     {
         // Send Data
         I2CMasterDataPut(I2C0_BASE, data[0]);
         I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_CONT);
         
     }
-    if (xSemaphoreTake(xI2C0Semaphore, portMAX_DELAY) == pdPASS)
+    if (xSemaphoreTake(xI2C0OPTSemaphore, portMAX_DELAY) == pdPASS)
     {
         I2CMasterDataPut(I2C0_BASE, data[1]);
         I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
     }
 
     // Delay until transmission completes
-    if (xSemaphoreTake(xI2C0Semaphore, portMAX_DELAY) == pdPASS)
+    if (xSemaphoreTake(xI2C0OPTSemaphore, portMAX_DELAY) == pdPASS)
     {
         // Set Flag
         g_I2C_flag = NONE;
@@ -91,7 +91,7 @@ bool readI2C(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
     I2CMasterControl(I2C0_BASE, I2C_MASTER_CMD_SINGLE_SEND);
 
     // Wait on semaphore
-    if( xSemaphoreTake(xI2C0Semaphore, portMAX_DELAY) == pdPASS)
+    if( xSemaphoreTake(xI2C0OPTSemaphore, portMAX_DELAY) == pdPASS)
     {
         // Load device slave address
         I2CMasterSlaveAddrSet(I2C0_BASE, ui8Addr, true);
@@ -101,7 +101,7 @@ bool readI2C(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
     }
 
     // Wait on semaphore
-    if( xSemaphoreTake(xI2C0Semaphore, portMAX_DELAY) == pdPASS)
+    if( xSemaphoreTake(xI2C0OPTSemaphore, portMAX_DELAY) == pdPASS)
     {
         byteA = I2CMasterDataGet(I2C0_BASE);
 
@@ -110,7 +110,7 @@ bool readI2C(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
     }
 
     // Wait on semaphore
-    if( xSemaphoreTake(xI2C0Semaphore, portMAX_DELAY) == pdPASS)
+    if( xSemaphoreTake(xI2C0OPTSemaphore, portMAX_DELAY) == pdPASS)
     {
         byteB = I2CMasterDataGet(I2C0_BASE);
 

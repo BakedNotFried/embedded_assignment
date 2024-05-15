@@ -43,8 +43,10 @@
 
 /*-----------------------------------------------------------*/
 // Binary Semaphore for I2C0 non-blocking read/write
-extern SemaphoreHandle_t xI2C0Semaphore;
+extern SemaphoreHandle_t xI2C0OPTSemaphore;
 extern SemaphoreHandle_t xI2C0BMISemaphore;
+// Mutex for I2C0
+extern SemaphoreHandle_t xI2C0Mutex;
 
 // enum for checking which sensor is using the I2C bus
 enum sensorType {NONE, OPT3001, BMI160};
@@ -52,10 +54,11 @@ volatile enum sensorType g_I2C_flag = NONE;
 
 // Function handle for task notification from Timer interrupt
 TaskHandle_t xOpt3001ReadHandle;
-TaskHandle_t xIMUReadHandle;
+TaskHandle_t xBMI160ReadHandle;
 
 // Queues for Sensor Data Publishing
 QueueHandle_t xOPT3001Queue = NULL;
+QueueHandle_t xBMI160Queue = NULL;
 
 // Structs for Sensor Data Publishing
 struct OPT3001Message
@@ -63,9 +66,10 @@ struct OPT3001Message
     uint32_t ulfilteredLux;
 } xOPT3001Message;
 
-// BMI160 Setup
-struct bmi160_dev bmi160_handle;
-struct bmi160_sensor_data accel;
+struct BMI160Message
+{
+    float ulfilteredAccel;
+} xBMI160Message;
 
 // Configuration for the OPT3001 sensor
 static void prvConfigureOPT3001Sensor( void );
@@ -79,7 +83,7 @@ static void prvConfigureHWTimer7A( void );
 
 // Task for reading the opt3001 sensor
 static void vOPT3001Read( void *pvParameters );
-static void vIMURead( void *pvParameters );
+static void xBMI160Read( void *pvParameters );
 
 // Called by main function to setup Sensor Tasks
 void vSensorTaskSetup( void );
@@ -88,25 +92,25 @@ void vSensorTaskSetup( void );
 
 void vSensorTaskSetup( void )
 {
-    // Create queue
+    // Create queues for sensor data pub
     xOPT3001Queue = xQueueCreate(1, sizeof(struct OPT3001Message));
+    xBMI160Queue = xQueueCreate(1, sizeof(struct BMI160Message));
 
     // Create the task to read the optical sensor
     xTaskCreate( vOPT3001Read,
-                 "Opt 3001 Read Task",
+                 "Opt 3001 Read/Pub Task",
                  configMINIMAL_STACK_SIZE,
                  NULL,
                  tskIDLE_PRIORITY + 1,
                  &xOpt3001ReadHandle);
     
     // Create the task to read the IMU sensor
-    xTaskCreate( vIMURead,
-                 "IMU Read Task",
+    xTaskCreate( xBMI160Read,
+                 "IMU Read/Pub Task",
                  configMINIMAL_STACK_SIZE,
                  NULL,
-                 tskIDLE_PRIORITY + 2,
-                 &xIMUReadHandle);
-    
+                 tskIDLE_PRIORITY + 1,
+                 &xBMI160ReadHandle);
 }
 /*-----------------------------------------------------------*/
 // Periodic Optical Read Task
@@ -130,8 +134,9 @@ static void vOPT3001Read( void *pvParameters )
     // Queue setup
     struct OPT3001Message xOPT3001Message;
 
-    // Enable the Timer 7A
+    // Timer Enable
     TimerEnable(TIMER7_BASE, TIMER_A);
+
     // TickType_t xLastWakeTime = xTaskGetTickCount();
     for( ;; )
     {
@@ -145,8 +150,9 @@ static void vOPT3001Read( void *pvParameters )
             // xLastWakeTime = xCurrentTime;
 
             //Read and convert OPT values
+            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
             success = sensorOpt3001Read(&rawData);
-
+            xSemaphoreGive(xI2C0Mutex);
             if (success) {
                 sensorOpt3001Convert(rawData, &convertedLux);
                 int lux_int = (int)convertedLux;
@@ -159,16 +165,17 @@ static void vOPT3001Read( void *pvParameters )
                     sum += lux_array[i];
                 }
                 int filtered_lux = sum / 10;
-                // UARTprintf("Filtered Lux: %5d\n", filtered_lux);
 
                 // Publish to Queue
                 xOPT3001Message.ulfilteredLux = filtered_lux;
                 xQueueSend(xOPT3001Queue, ( void * ) &xOPT3001Message, ( TickType_t ) 0 );
 
+                // DEBUG
+                UARTprintf("\nFiltered Lux: %5d\n", filtered_lux);
                 // Get the sensor configuration
-                uint16_t config;
-                readI2C(0x47, 0x7F, (uint8_t *)&config);
-                config = (config << 8) | (config>>8 &0xFF);
+                // uint16_t config;
+                // readI2C(0x47, 0x7F, (uint8_t *)&config);
+                // config = (config << 8) | (config>>8 &0xFF);
                 // UARTprintf("OPT3001 Config: 0x%04x\n", config);
             }
         }
@@ -176,15 +183,14 @@ static void vOPT3001Read( void *pvParameters )
 }
 
 // Periodic IMU Read Task
-static void vIMURead( void *pvParameters )
+static void xBMI160Read( void *pvParameters )
 {
     // // Configure I2C0
     prvConfigureI2C0();
 
-    // Setup BMI
-    bmi160_handle.id = 0x69;
-    bmi160_handle.intf = BMI160_I2C_INTF;
-    bmi160_handle.read = readI2CBMI;
+    // Configure Timer 6A
+    prvConfigureHWTimer6A();
+
     // Vars for accel x,y,z
     uint8_t x_lsb = 0x00;
     uint8_t x_msb = 0x00;
@@ -193,27 +199,38 @@ static void vIMURead( void *pvParameters )
     uint8_t z_lsb = 0x00;
     uint8_t z_msb = 0x00;
     int16_t int_x = 0x0000;
-    float x = 0;
     int16_t int_y = 0x0000;
-    float y = 0;
     int16_t int_z = 0x0000;
-    float z = 0;
-    uint8_t normal_accl_mode = 0x11;
-    writeI2CBMI(0x69, BMI160_COMMAND_REG_ADDR, &normal_accl_mode);
-    vTaskDelay(200);
+    int16_t prev_int_accel = 17367;
+    float accel = 0.0;
 
-    // soft reset
-    // uint8_t reset = BMI160_SOFT_RESET_CMD;
-    // writeI2CBMI(0x69, BMI160_COMMAND_REG_ADDR, &reset);
-    // vTaskDelay(200);
+    // Array for filtered values
+    float accel_array[5] = {0};
+    int index = 0;
 
-    // bmi160_get_regs(BMI160_CHIP_ID_ADDR, &bmi1
+    // Queue setup
+    struct BMI160Message xBMI160Message;
 
-    // Configure Timer 6A
-    prvConfigureHWTimer6A();
+    // BMI160 Config
+    uint8_t normal_accl_mode = 0x11;                                // Normal Mode, Accel Only
+    xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
+    writeI2CBMI(0x69, BMI160_COMMAND_REG_ADDR, &normal_accl_mode);  // Write to Command Register
+    xSemaphoreGive(xI2C0Mutex);
+    vTaskDelay(200);                                                // Delay for 200ms to allow for sensor to start
 
-    // Enable the Timer 6A
+    // uint8_t offset_addr = 0x77;
+    // uint8_t offset_config = 0x40;
+    // writeI2CBMI(0x69, offset_addr, &offset_config);                // Write to Offset Config Register
+    // vTaskDelay(100);
+    // uint8_t gyro_offset_z_addr = 0x73;
+    // // twos complement -1000 0000
+    // uint8_t gyro_offset_z = 0x00;
+    // writeI2CBMI(0x69, gyro_offset_z_addr, &gyro_offset_z);          // Write to Gyro Offset Z Register
+    // vTaskDelay(100);                                                // Delay for 200ms to allow for sensor to start
+
+    // Timer Enable
     TimerEnable(TIMER6_BASE, TIMER_A);
+
     // TickType_t xLastWakeTime = xTaskGetTickCount();
     for( ;; )
     {
@@ -223,43 +240,59 @@ static void vIMURead( void *pvParameters )
         // UARTprintf("Time Passed: %d ms\n", xElapsedTime);
         // xLastWakeTime = xCurrentTime;
 
-
         // Wait for notification from Timer7B interrupt
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         {
-            // UARTprintf("IMU Read Task\n");
-            // readI2CBMI(0x69, BMI160_CHIP_ID_ADDR, &bmi160_handle.chip_id);
-            // UARTprintf("BMI160 Config 2: 0x%02x\n", bmi160_handle.chip_id);
-
-            // readI2CBMI(0x69, 0x03, &bmi160_handle.chip_id);
-            // UARTprintf("BMI160 Config 2: 0x%02x\n", bmi160_handle.chip_id);
-
-            // readI2CBMI(0x69, 0x1B, &bmi160_handle.chip_id);
-            // UARTprintf("BMI160 Config 2: 0x%02x\n", bmi160_handle.chip_id);
-
-            // readI2CBMI(0x69, 0x41, &bmi160_handle.chip_id);
-            // UARTprintf("BMI160 Config 2: 0x%02x\n", bmi160_handle.chip_id);
-
-            // Get Sensor Data
+            // Get Sensor Data for X,Y,Z
+            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
             readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR, &x_lsb);
             readI2CBMI(0x69, 0x13, &x_msb);
+            xSemaphoreGive(xI2C0Mutex);
             int_x = (int16_t)((x_msb << 8) | x_lsb);
-            float x = ((float)int_x) / 16384.0;
-            UARTprintf("BMI160 Accel X: %d\n", (int32_t)(x*10000));
-
+            // UARTprintf("BMI160 Accel X: %d\n", int_x);
+            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
             readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 2, &y_lsb);
             readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 3, &y_msb);
+            xSemaphoreGive(xI2C0Mutex);
             int_y = (int16_t)((y_msb << 8) | y_lsb);
-            float y = ((float)int_y) / 16384.0;
-            UARTprintf("BMI160 Accel Y: %d\n", (int32_t)(y*10000));
-
+            // UARTprintf("BMI160 Accel Y: %d\n", int_y);
+            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
             readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 4, &z_lsb);
             readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 5, &z_msb);
+            xSemaphoreGive(xI2C0Mutex);
             int_z = (int16_t)((z_msb << 8) | z_lsb);
-            float z = ((float)int_z) / 16384.0;
-            UARTprintf("BMI160 Accel Z: %d\n", int_z);
-            // UARTprintf("BMI160 Accel Z: %d\n", (int32_t)(z*10000));
-            
+            // UARTprintf("BMI160 Accel Z: %d\n", int_z);
+
+            // Combine X,Y,Z into one value
+            int16_t int_accel = int_x + int_y + int_z;
+            int16_t int_jerk = int_accel - prev_int_accel;
+            prev_int_accel = int_accel;
+            // Actually using Jerk. Normalise to 1g and take absolute value
+            accel = (float)int_jerk / 16384.0;
+            if (accel < 0)
+            {
+                accel = -accel;
+            }
+        
+            // Filter values
+            accel_array[index] = accel;
+            index = (index + 1) % 5;
+            float sum = 0;
+            for (int i = 0; i < 5; i++) {
+                sum += accel_array[i];
+            }
+            float filtered_accel = sum / 5;
+
+            // Publish to Queue
+            xBMI160Message.ulfilteredAccel = filtered_accel;
+            xQueueSend(xBMI160Queue, ( void * ) &xBMI160Message, ( TickType_t ) 0 );
+
+            // // DEBUG
+            // if (filtered_accel >  0.5)
+            // {
+            //     UARTprintf("EMERGENCY!\n");
+            // }
+            UARTprintf("\nBMI160 Jerk: %d\n", int_jerk);
         }
     }
 }
@@ -305,7 +338,9 @@ static void prvConfigureOPT3001Sensor( void )
 
         // Initialize opt3001 sensor
         // sensorOpt3001Init();
+        xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
         sensorOpt3001Enable(true);
+        xSemaphoreGive(xI2C0Mutex);
 }
 
 static void prvConfigureI2C0( void )
@@ -344,7 +379,7 @@ static void prvConfigureHWTimer6A( void )
     TimerConfigure(TIMER6_BASE, TIMER_CFG_PERIODIC);
 
     /* Set the Timer 6A load value to run at 100 Hz. */
-    TimerLoadSet(TIMER6_BASE, TIMER_A, configCPU_CLOCK_HZ / 2);
+    TimerLoadSet(TIMER6_BASE, TIMER_A, configCPU_CLOCK_HZ / 100);
 
     /* Configure the Timer 6A interrupt for timeout. */
     TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
@@ -390,7 +425,7 @@ void xI2C0Handler( void )
         // Give the semaphore to unblock the OPT3001 I2C read
         BaseType_t xI2C0TaskWoken = pdFALSE;
         xI2C0TaskWoken = pdFALSE;
-        xSemaphoreGiveFromISR( xI2C0Semaphore, &xI2C0TaskWoken );
+        xSemaphoreGiveFromISR( xI2C0OPTSemaphore, &xI2C0TaskWoken );
         portYIELD_FROM_ISR( xI2C0TaskWoken );
     }
     else if (g_I2C_flag == BMI160)
@@ -409,7 +444,7 @@ void xI2C0Handler( void )
     // Give the semaphore to unblock the I2C read
     // BaseType_t xI2C0TaskWoken = pdFALSE;
     // xI2C0TaskWoken = pdFALSE;
-    // xSemaphoreGiveFromISR( xI2C0Semaphore, &xI2C0TaskWoken );
+    // xSemaphoreGiveFromISR( xI2C0OPTSemaphore, &xI2C0TaskWoken );
     // portYIELD_FROM_ISR( xI2C0TaskWoken );
 }
 
@@ -420,7 +455,7 @@ void xTimer6AHandler( void )
 
     // Notify the task to read the IMU sensor
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(xIMUReadHandle, &xHigherPriorityTaskWoken);
+    vTaskNotifyGiveFromISR(xBMI160ReadHandle, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 
     // debug print
