@@ -80,8 +80,6 @@
 #include "driverlib/timer.h"
 
 /*-----------------------------------------------------------*/
-
-
 /* The system clock frequency. */
 uint32_t g_ui32SysClock;
 
@@ -236,36 +234,26 @@ static void prvConfigureHallInts( void )
     IntMasterEnable(); //
 }
 
-static void prvADC1_Init(void) //ADC1 on PE3 
+static void prvADC1_Init(void) //ADC1 on PE3
 {
-    SysCtlPeripheralEnable( SYSCTL_PERIPH_ADC1 );
-
-    SysCtlPeripheralEnable( SYSCTL_PERIPH_GPIOE );
-    // SysCtlPeripheralEnable( SYSCTL_PERIPH_GPIOD );
-
-    //TODO: CALIBRATE? 
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC1);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
 
     //Makes GPIO an INPUT and sets them to be ANALOG
-    GPIOPinTypeADC( GPIO_PORTE_BASE, GPIO_PIN_3 );
-    // GPIOPinTypeADC( GPIO_PORTD_BASE, GPIO_PIN_7 );
+    GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_3);
+    GPIOPinTypeADC(GPIO_PORTD_BASE, GPIO_PIN_7);
 
-    ADCSequenceConfigure( ADC1_BASE, ADC_SEQ_1, ADC_TRIGGER_PROCESSOR, 0 );
-    
-    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP, ADC_CTL_CH0);
-    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+1, ADC_CTL_CH0);
-    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+2, ADC_CTL_CH0);
-    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+3, ADC_CTL_CH0);
+    ADCSequenceConfigure(ADC1_BASE, ADC_SEQ_1, ADC_TRIGGER_PROCESSOR, 0);
 
-    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+4, ADC_CTL_CH4);
-    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+5, ADC_CTL_CH4);
-    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+6, ADC_CTL_CH4);
-    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP, ADC_CTL_IE | ADC_CTL_CH0 | ADC_CTL_END );
-    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP, ADC_CTL_IE | ADC_CTL_CH4 | ADC_CTL_END );
+    // Configure step 0 for channel 0 (PE3)
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, 0, ADC_CTL_CH0);
 
-    //uint32_t ui32Base, uint32_t ui32SequenceNum, uint32_t ui32Step, uint32_t ui32Config
-    
-    ADCSequenceEnable( ADC1_BASE, ADC_SEQ_1);
-    ADCIntClear( ADC1_BASE, ADC_SEQ_1);
+    // Configure step 1 for channel 4 (PD7) and enable interrupt and end sequence
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, 1, ADC_CTL_CH4 | ADC_CTL_IE | ADC_CTL_END);
+
+    ADCSequenceEnable(ADC1_BASE, ADC_SEQ_1);
+    ADCIntClear(ADC1_BASE, ADC_SEQ_1);
 
     // Create the semaphore
     xADC1_Semaphore = xSemaphoreCreateBinary();
@@ -276,7 +264,6 @@ static void prvADC1_Init(void) //ADC1 on PE3
     // Enable the ADC1 sequence 1 interrupt
     ADCIntEnable(ADC1_BASE, ADC_SEQ_1);
 }
-
 
 static void prvConfigureMotorRPMTimer(void) {
     // Enable the peripheral clock for the timer

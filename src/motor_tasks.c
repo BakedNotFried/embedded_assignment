@@ -84,6 +84,7 @@
  * The tasks as described in the comments at the top of this file.
  */
 static void prvMotorTask( void *pvParameters );
+static void vCurrentRead( void *pvParameters );
 
 /*
  * Called by main() to create the Hello print task.
@@ -99,7 +100,7 @@ void ADC1_Sequence1_Handler(void);
 static void prvConfigureHWTimer3A( void );
 
 //helper functions
-void ADC1_Read(uint32_t *current);
+void ADC1_Read(uint32_t *current_ch0, uint32_t *current_ch4);
 void MotorRPMTimerStart(void);
 void MotorRPMTimerStop(void);  
 void initMotorState(MotorState *motor_state);
@@ -109,6 +110,8 @@ void setMotorEstop(void);
 uint32_t calculateCurrent(uint32_t adc_buffer[8], int channel_no);
 uint32_t calculatePower(uint32_t adc_buffer[8]);
 
+// Function Handle for current read task
+TaskHandle_t vCurrentReadHandle;
 
 //external structs
 extern SemaphoreHandle_t xADC1_Semaphore;
@@ -128,17 +131,6 @@ volatile float integral_error = 0;
 
 void vCreateMotorTask( void )
 {
-    /* Create the task as described in the comments at the top of this file.
-     *
-     * The xTaskCreate parameters in order are:
-     *  - The function that implements the task.
-     *  - The text name Hello task - for debug only as it is
-     *    not used by the kernel.
-     *  - The size of the stack to allocate to the task.
-     *  - No parameter passed to the task
-     *  - The priority assigned to the task.
-     *  - The task handle is NULL */
-
     xRPMQueue = xQueueCreate(
                         /* The number of items the queue can hold. */
                         RPM_QUEUE_LENGTH,
@@ -157,7 +149,15 @@ void vCreateMotorTask( void )
                  tskIDLE_PRIORITY + 1,
                  NULL );
                      // Enable the timer
+    
+    xTaskCreate( vCurrentRead,
+                 "Current Read",
+                 configMINIMAL_STACK_SIZE,
+                 NULL,
+                 tskIDLE_PRIORITY + 1,
+                 &vCurrentReadHandle );
 
+    // Enable Timers
     TimerEnable(TIMER5_BASE, TIMER_A); //RPM Timer
     TimerEnable(TIMER4_BASE, TIMER_A); //Control Timer
 }
@@ -174,13 +174,13 @@ static void prvMotorTask( void *pvParameters )
 
 
     // uint32_t current_sensor[8];
-    uint32_t current_c1 = 0;
+    // uint32_t current_c1 = 0;
 
 
     /* Initialise the motors and set the duty cycle (speed) in microseconds */
     initMotorState(&motor_state); // set the struct up
 
-    setMotorRPM(200);
+    setMotorRPM(500);
     // stopMotor(1);
 
     enableMotor();
@@ -283,8 +283,8 @@ static void prvMotorTask( void *pvParameters )
 
         //12 bits ADC
         // UARTprintf("Before Read\n");
-        ADC1_Read(&current_c1);
-        UARTprintf("Current draw: %d \n", 2048 - current_c1);
+        // ADC1_Read(&current_c1);
+        // UARTprintf("Current draw: %d \n", 2048 - current_c1);
         // ADC1_Read(current_sensor);
         // char bufferC[100];
         // uint32_t average_0 = (current_sensor[0]+ current_sensor[1]+ current_sensor[2]+ current_sensor[3])/4;
@@ -299,7 +299,7 @@ static void prvMotorTask( void *pvParameters )
         // int power = (int)calculatePower(current_sensor);
         // UARTprintf("Power draw: %d milliWatts\n", power);
 
-        vTaskDelay(pdMS_TO_TICKS( 10 ));
+        vTaskDelay(pdMS_TO_TICKS( 100 ));
 
         //uint32_t ADC_ref = ADCReferenceGet(ADC1_BASE);
         //UARTprintf("ADC ref: %u \n", ADC_ref);
@@ -315,7 +315,93 @@ static void prvMotorTask( void *pvParameters )
     /* Motor test - ramp up the duty cycle from 10% to 100%, than stop the motor */
 }
 /*-----------------------------------------------------------*/
+// Current Read Task
+static void vCurrentRead( void *pvParameters )
+{
+    // Configure the HW Timer 3A
+    prvConfigureHWTimer3A();
 
+    // Setup
+    uint32_t biased_current_C = 0;
+    uint32_t biased_current_B = 0;
+    int32_t bias = 2048;
+    int arr_len = 25;
+    int32_t current_C_array[25] = {0};
+    int32_t current_B_array[25] = {0};
+    int32_t current_C = 0;
+    int32_t current_B = 0;
+    int32_t current_A = 0;
+    int32_t current = 0;
+    uint32_t current_C_filtered = 0;
+    uint32_t current_B_filtered = 0;
+    uint32_t power = 0;
+    int index_C = 0;
+    int index_B = 0;
+    int32_t sum_C = 0;
+    int32_t sum_B = 0;
+
+    int print_idx = 0;
+
+    TimerEnable(TIMER3_BASE, TIMER_A); //Current Timer
+    // Loop indefinitely
+    for( ;; )
+    {
+        // Wait for the notification from the HW Timer 3A interrupt
+        ulTaskNotifyTake( pdTRUE, portMAX_DELAY );
+
+        // Read the current sensor
+        ADC1_Read(&biased_current_C, &biased_current_B);
+
+        // Unbias and abs
+        current_C = bias - biased_current_C;
+        current_B = bias - biased_current_B;
+        current_C = abs(current_C);
+        current_B = abs(current_B);
+
+        // // Filter values
+        current_C_array[index_C] = current_C;
+        current_B_array[index_B] = current_B;
+        index_C = (index_C + 1) % arr_len;
+        index_B = (index_B + 1) % arr_len;
+        sum_C = 0;
+        sum_B = 0;
+        for (int i = 0; i < arr_len; i++) {
+            sum_C += current_C_array[i];
+            sum_B += current_B_array[i];
+        }
+        current_C_filtered = sum_C / arr_len;
+        current_B_filtered = sum_B / arr_len;
+        // Estimate the current on the A coil
+        current_A = (current_C_filtered + current_B_filtered) / 2;
+
+        // Total current
+        current = current_A + current_C_filtered + current_B_filtered;
+
+        // Scale Current to mA
+        current = current / 0.07;
+        current *= 1000;
+        current /= 4096;
+
+        if ((print_idx % 100) == 0) {
+            // Print the current value mA
+            // UARTprintf("Current mA: %d\n", current);
+
+            // Print power. VI
+            power = 24 * current;
+
+            // Print the power value
+            UARTprintf("Power mW: %d\n", power);
+
+            // Debug
+            // UARTprintf("Current C: %d\n", current);
+            // UARTprintf("Current B: %d\n", biased_current_B);
+        }
+        print_idx += 1;
+    }
+}
+
+
+/*-----------------------------------------------------------*/
 
 /* Interrupt handlers */
 
@@ -451,8 +537,6 @@ void initMotorState(MotorState *motor_state){
     motor_state->current_rpm = 0;
 }
 
-
-
 uint32_t calculateCurrent(uint32_t adc_buffer[8], int channel_no) {
     int32_t v_shunt_mV;
     // Convert ADC value to voltage across the shunt in millivolts (mV)
@@ -536,22 +620,33 @@ void ADC1_Sequence1_Handler(void) {
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-void ADC1_Read(uint32_t *current) {
-    // Trigger the ADC conversion.
+// void ADC1_Read(uint32_t *current) {
+//     // Trigger the ADC conversion.
+//     ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
+
+//     // Wait for the semaphore to be given by the interrupt handler
+//     if (xSemaphoreTake(xADC1_Semaphore, portMAX_DELAY) == pdTRUE) {
+//         // Read ADC FIFO buffer from sample sequence
+//         ADCSequenceDataGet(ADC1_BASE, ADC_SEQ_1, current);
+//     }
+
+//     // Clear any potential pending ADC interrupts (safety)
+//     ADCIntClear(ADC1_BASE, ADC_SEQ_1);
+// }
+void ADC1_Read(uint32_t *current_ch0, uint32_t *current_ch4)
+{
     ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
-
-    // Wait for the semaphore to be given by the interrupt handler
     if (xSemaphoreTake(xADC1_Semaphore, portMAX_DELAY) == pdTRUE) {
-        // Read ADC FIFO buffer from sample sequence
-        ADCSequenceDataGet(ADC1_BASE, ADC_SEQ_1, current);
+        uint32_t adc_values[2];
+        ADCSequenceDataGet(ADC1_BASE, ADC_SEQ_1, adc_values);
+        *current_ch0 = adc_values[0];
+        *current_ch4 = adc_values[1];
     }
-
-    // Clear any potential pending ADC interrupts (safety)
     ADCIntClear(ADC1_BASE, ADC_SEQ_1);
 }
 
 // Timer 3A for triggering current reads
-static void prvConfigureHWTimer6A( void )
+static void prvConfigureHWTimer3A( void )
 {
     /* The Timer 3 peripheral must be enabled for use. */
     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER3);
@@ -560,7 +655,7 @@ static void prvConfigureHWTimer6A( void )
     TimerConfigure(TIMER3_BASE, TIMER_CFG_PERIODIC);
 
     /* Set the Timer 3A load value to run at 200 Hz. */
-    TimerLoadSet(TIMER3_BASE, TIMER_A, configCPU_CLOCK_HZ / 2);
+    TimerLoadSet(TIMER3_BASE, TIMER_A, configCPU_CLOCK_HZ / 200);
 
     /* Configure the Timer 3A interrupt for timeout. */
     TimerIntEnable(TIMER3_BASE, TIMER_TIMA_TIMEOUT);
@@ -570,4 +665,19 @@ static void prvConfigureHWTimer6A( void )
 
     // /* Enable global interrupts in the NVIC. */
     IntMasterEnable();
+}
+
+// Timer 3A interrupt handler
+void xTimer3AHandler( void )
+{
+    /* Clear the hardware interrupt flag for Timer 3A. */
+    TimerIntClear(TIMER3_BASE, TIMER_TIMA_TIMEOUT);
+
+    // Notify the task to read the Current sensor
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(vCurrentReadHandle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+
+    // // debug print
+    // UARTprintf("Timer 3A Interrupt\n");
 }

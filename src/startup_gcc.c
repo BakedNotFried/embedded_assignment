@@ -47,6 +47,7 @@ extern void xPortSysTickHandler(void);
 extern void HallSensorHandler(void);
 extern void ADC1_Sequence1_Handler(void);
 extern void Timer4IntHandler(void);
+extern void xTimer3AHandler(void);
 
 //*****************************************************************************
 //
@@ -123,7 +124,7 @@ void (* const g_pfnVectors[])(void) =
     HallSensorHandler,                      // GPIO Port H
     IntDefaultHandler,                      // UART2 Rx and Tx
     IntDefaultHandler,                      // SSI1 Rx and Tx
-    IntDefaultHandler,                      // Timer 3 subtimer A
+    xTimer3AHandler,                      // Timer 3 subtimer A
     IntDefaultHandler,                      // Timer 3 subtimer B
     IntDefaultHandler,                      // I2C1 Master and Slave
     IntDefaultHandler,                      // CAN0
