@@ -97,7 +97,7 @@ void HallSensorHandler(void);
 void ADC1_Sequence1_Handler(void);
 
 //helper functions
-void ADC1_Read(uint32_t current_sensor[8]);
+void ADC1_Read(uint32_t *current);
 void MotorRPMTimerStart(void);
 void MotorRPMTimerStop(void);  
 void initMotorState(MotorState *motor_state);
@@ -171,13 +171,15 @@ static void prvMotorTask( void *pvParameters )
 
 
 
-    uint32_t current_sensor[8];
+    // uint32_t current_sensor[8];
+    uint32_t current_c1 = 0;
 
 
     /* Initialise the motors and set the duty cycle (speed) in microseconds */
     initMotorState(&motor_state); // set the struct up
 
-    setMotorRPM(1200);
+    setMotorRPM(3000);
+    // stopMotor(1);
 
     enableMotor();
     initMotorLib(period_value);
@@ -192,13 +194,13 @@ static void prvMotorTask( void *pvParameters )
     
     updateMotor(stateA, stateB, stateC);
 
-    UARTprintf("Main Read 1: %d, 2: %d, 3: %d,\n", stateA, stateB, stateC);
+    // UARTprintf("Main Read 1: %d, 2: %d, 3: %d,\n", stateA, stateB, stateC);
 
-    UARTprintf("STATE: %d \n", motor_state.current_state);
-    UARTprintf("Current RPM: %d \n", motor_state.current_rpm);
-    UARTprintf("set RPM: %d \n", motor_state.set_rpm);
-    UARTprintf("Duty Value: %d \n", (uint16_t)motor_state.duty_value);
-    UARTprintf("Estop condition: %d \n", motor_state.Estop_condition);
+    // UARTprintf("STATE: %d \n", motor_state.current_state);
+    // UARTprintf("Current RPM: %d \n", motor_state.current_rpm);
+    // UARTprintf("set RPM: %d \n", motor_state.set_rpm);
+    // UARTprintf("Duty Value: %d \n", (uint16_t)motor_state.duty_value);
+    // UARTprintf("Estop condition: %d \n", motor_state.Estop_condition);
 
     for (;;)
     {
@@ -259,40 +261,43 @@ static void prvMotorTask( void *pvParameters )
             duty_value++;
         }
         */
-        RPMQueueData xRecievedRPM;
-        if (xQueueReceive(xRPMQueue, &xRecievedRPM, 100) == pdPASS) {
-            //motor_state.current_rpm = xRecievedRPM.value; UPDATE IN ISR so that it can react quickly
-            UARTprintf("RPM: %u\n", xRecievedRPM.value);
-            UARTprintf("Ticks: %u\n", xRecievedRPM.ticks);
-        }else{
-            //did not receive from Queue in 100ms
-            UARTprintf("RPM: 0\n");
-        }
+        // RPMQueueData xRecievedRPM;
+        // if (xQueueReceive(xRPMQueue, &xRecievedRPM, 100) == pdPASS) {
+        //     //motor_state.current_rpm = xRecievedRPM.value; UPDATE IN ISR so that it can react quickly
+        //     UARTprintf("RPM: %u\n", xRecievedRPM.value);
+        //     UARTprintf("Ticks: %u\n", xRecievedRPM.ticks);
+        // }else{
+        //     //did not receive from Queue in 100ms
+        //     UARTprintf("RPM: 0\n");
+        // }
 
-        UARTprintf("STATE: %d \n", motor_state.current_state);
-        UARTprintf("Current RPM: %d \n", motor_state.current_rpm);
-        UARTprintf("set RPM: %u \n", motor_state.set_rpm);
-        UARTprintf("Duty Value: %d \n", (uint16_t)motor_state.duty_value);
-        UARTprintf("Estop condition: %d \n", motor_state.Estop_condition);
-        UARTprintf("Controller Error: %d \n", (int32_t)motor_state.controller_error);
-        UARTprintf("Controller Output: %d \n", (int32_t)motor_state.controller_ouput);
+        // UARTprintf("STATE: %d \n", motor_state.current_state);
+        // UARTprintf("Current RPM: %d \n", motor_state.current_rpm);
+        // UARTprintf("set RPM: %u \n", motor_state.set_rpm);
+        // UARTprintf("Duty Value: %d \n", (uint16_t)motor_state.duty_value);
+        // UARTprintf("Estop condition: %d \n", motor_state.Estop_condition);
+        // UARTprintf("Controller Error: %d \n", (int32_t)motor_state.controller_error);
+        // UARTprintf("Controller Output: %d \n", (int32_t)motor_state.controller_ouput);
 
         //12 bits ADC
-        ADC1_Read(current_sensor);
-        char bufferC[100];
-        uint32_t average_0 = (current_sensor[0]+ current_sensor[1]+ current_sensor[2]+ current_sensor[3])/4;
-        usprintf(bufferC, "Channel 0 Value: %u, value: %u, value %u, value: %u average :%u \n", current_sensor[0], current_sensor[1], current_sensor[2], current_sensor[3], average_0);
-        UARTprintf(bufferC);
+        // UARTprintf("Before Read\n");
+        ADC1_Read(&current_c1);
+        UARTprintf("Current draw: %d \n", 2048 - current_c1);
+        // ADC1_Read(current_sensor);
+        // char bufferC[100];
+        // uint32_t average_0 = (current_sensor[0]+ current_sensor[1]+ current_sensor[2]+ current_sensor[3])/4;
+        // usprintf(bufferC, "Channel 0 Value: %u, value: %u, value %u, value: %u average :%u \n", current_sensor[0], current_sensor[1], current_sensor[2], current_sensor[3], average_0);
+        // UARTprintf(bufferC);
 
-        char bufferB[100];
-        uint32_t average_4 = (current_sensor[4]+ current_sensor[5]+ current_sensor[6]+ current_sensor[7])/4;
-        usprintf(bufferB, "Channel 4 Value: %u, value: %u, value %u, value: %u  average: %u \n", current_sensor[4], current_sensor[5], current_sensor[6], current_sensor[7], average_4);
-        UARTprintf(bufferB);
+        // char bufferB[100];
+        // uint32_t average_4 = (current_sensor[4]+ current_sensor[5]+ current_sensor[6]+ current_sensor[7])/4;
+        // usprintf(bufferB, "Channel 4 Value: %u, value: %u, value %u, value: %u  average: %u \n", current_sensor[4], current_sensor[5], current_sensor[6], current_sensor[7], average_4);
+        // UARTprintf(bufferB);
 
-        int power = (int)calculatePower(current_sensor);
-        UARTprintf("Power draw: %d milliWatts\n", power);
+        // int power = (int)calculatePower(current_sensor);
+        // UARTprintf("Power draw: %d milliWatts\n", power);
 
-        vTaskDelay(pdMS_TO_TICKS( 3000 ));
+        vTaskDelay(pdMS_TO_TICKS( 10 ));
 
         //uint32_t ADC_ref = ADCReferenceGet(ADC1_BASE);
         //UARTprintf("ADC ref: %u \n", ADC_ref);
@@ -419,12 +424,20 @@ void HallSensorHandler(void)
     stateB = GPIOPinRead(HALL_B_PORT, HALL_B_PIN) ? 1 : 0;
     stateC = GPIOPinRead(HALL_C_PORT, HALL_C_PIN) ? 1 : 0;
 
+    // // Checking current on C coil
+    // if (stateC == 1){
+    //     ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
+    //     // 1 ms delay
+    //     // vTaskDelay(pdMS_TO_TICKS( 1 ));
+    // }
+
    // UARTprintf("Hall Read 1: %d, 2: %d, 3: %d,\n", stateA, stateB, stateC);
     // Call updateMotor to change to the next phase
     // try debounce the noise
 
+    // ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
     updateMotor(stateA, stateB, stateC);
-    ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
+    // ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
     //Optionally add code for motor speed sensing or additional control feedback.
     
 }
@@ -449,14 +462,14 @@ void ADC1_Sequence1_Handler(void) {
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-void ADC1_Read(uint32_t current_sensor[8]) {
+void ADC1_Read(uint32_t *current) {
     // Trigger the ADC conversion.
-    //ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
+    ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
 
     // Wait for the semaphore to be given by the interrupt handler
     if (xSemaphoreTake(xADC1_Semaphore, portMAX_DELAY) == pdTRUE) {
         // Read ADC FIFO buffer from sample sequence
-        ADCSequenceDataGet(ADC1_BASE, ADC_SEQ_1, current_sensor);
+        ADCSequenceDataGet(ADC1_BASE, ADC_SEQ_1, current);
     }
 
     // Clear any potential pending ADC interrupts (safety)

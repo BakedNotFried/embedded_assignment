@@ -241,25 +241,27 @@ static void prvADC1_Init(void) //ADC1 on PE3
     SysCtlPeripheralEnable( SYSCTL_PERIPH_ADC1 );
 
     SysCtlPeripheralEnable( SYSCTL_PERIPH_GPIOE );
-    SysCtlPeripheralEnable( SYSCTL_PERIPH_GPIOD );
+    // SysCtlPeripheralEnable( SYSCTL_PERIPH_GPIOD );
 
     //TODO: CALIBRATE? 
 
     //Makes GPIO an INPUT and sets them to be ANALOG
     GPIOPinTypeADC( GPIO_PORTE_BASE, GPIO_PIN_3 );
-    GPIOPinTypeADC( GPIO_PORTD_BASE, GPIO_PIN_7 );
+    // GPIOPinTypeADC( GPIO_PORTD_BASE, GPIO_PIN_7 );
 
     ADCSequenceConfigure( ADC1_BASE, ADC_SEQ_1, ADC_TRIGGER_PROCESSOR, 0 );
     
-    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP, ADC_CTL_CH0);
-    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+1, ADC_CTL_CH0);
-    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+2, ADC_CTL_CH0);
-    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+3, ADC_CTL_CH0);
+    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP, ADC_CTL_CH0);
+    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+1, ADC_CTL_CH0);
+    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+2, ADC_CTL_CH0);
+    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+3, ADC_CTL_CH0);
 
-    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+4, ADC_CTL_CH4);
-    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+5, ADC_CTL_CH4);
-    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+6, ADC_CTL_CH4);
-    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+7, ADC_CTL_IE | ADC_CTL_CH4 | ADC_CTL_END );
+    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+4, ADC_CTL_CH4);
+    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+5, ADC_CTL_CH4);
+    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+6, ADC_CTL_CH4);
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP, ADC_CTL_IE | ADC_CTL_CH0 | ADC_CTL_END );
+    // ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP, ADC_CTL_IE | ADC_CTL_CH4 | ADC_CTL_END );
+
     //uint32_t ui32Base, uint32_t ui32SequenceNum, uint32_t ui32Step, uint32_t ui32Config
     
     ADCSequenceEnable( ADC1_BASE, ADC_SEQ_1);
