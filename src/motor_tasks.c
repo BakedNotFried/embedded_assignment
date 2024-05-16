@@ -178,7 +178,7 @@ static void prvMotorTask( void *pvParameters )
     /* Initialise the motors and set the duty cycle (speed) in microseconds */
     initMotorState(&motor_state); // set the struct up
 
-    setMotorRPM(3000);
+    setMotorRPM(1000);
     // stopMotor(1);
 
     enableMotor();
