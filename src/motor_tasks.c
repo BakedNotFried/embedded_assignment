@@ -80,15 +80,13 @@
 #include "driverlib/timer.h"
 
 /*-----------------------------------------------------------*/
-/*
- * The tasks as described in the comments at the top of this file.
- */
+// Tasks
 static void prvMotorTask( void *pvParameters );
 static void vCurrentRead( void *pvParameters );
+static void vRPMRead( void *pvParameters );
+static void vRPMReadTest( void *pvParameters );
 
-/*
- * Called by main() to create the Hello print task.
- */
+// Tasks Creator
 void vCreateMotorTask( void );
 
 /*
@@ -112,11 +110,13 @@ uint32_t calculatePower(uint32_t adc_buffer[8]);
 
 // Function Handle for current read task
 TaskHandle_t vCurrentReadHandle;
+TaskHandle_t vRPMReadHandle;
 
 //external structs
 extern SemaphoreHandle_t xADC1_Semaphore;
 extern MotorState motor_state;
-extern QueueHandle_t xRPMQueue;
+extern QueueHandle_t xRPMQueueExternal;
+extern QueueHandle_t xRPMQueueInternal;
 extern RPMQueueData xRPMvalue;
 
 //globals
@@ -126,20 +126,15 @@ volatile uint32_t startTime = 0;
 volatile uint32_t endTime = 0;
 volatile float integral_error = 0;
 
-
 /*-----------------------------------------------------------*/
 
 void vCreateMotorTask( void )
 {
-    xRPMQueue = xQueueCreate(
-                        /* The number of items the queue can hold. */
-                        RPM_QUEUE_LENGTH,
-                        /* Size of each item is big enough to hold the
-                        whole structure. */
-                        sizeof( xRPMvalue ) );
-    if( ( xRPMQueue == NULL ) )
+    xRPMQueueInternal = xQueueCreate(1, sizeof( xRPMvalue ) );
+    xRPMQueueExternal = xQueueCreate(1, sizeof( xRPMvalue ) );
+    if( ( xRPMQueueExternal == NULL ) || ( xRPMQueueInternal == NULL ) )
     {
-        //error here
+        UARTprintf("RPM Queue not created. \n");
     }
 
     xTaskCreate( prvMotorTask,
@@ -148,7 +143,6 @@ void vCreateMotorTask( void )
                  NULL,
                  tskIDLE_PRIORITY + 1,
                  NULL );
-                     // Enable the timer
     
     xTaskCreate( vCurrentRead,
                  "Current Read",
@@ -157,12 +151,26 @@ void vCreateMotorTask( void )
                  tskIDLE_PRIORITY + 1,
                  &vCurrentReadHandle );
 
+    xTaskCreate( vRPMRead,
+                 "RPM Read",
+                 configMINIMAL_STACK_SIZE,
+                 NULL,
+                 tskIDLE_PRIORITY + 1,
+                 &vRPMReadHandle );
+    
+    xTaskCreate( vRPMReadTest,
+                 "RPM Read Test",
+                 configMINIMAL_STACK_SIZE,
+                 NULL,
+                 tskIDLE_PRIORITY + 1,
+                 NULL );
+
     // Enable Timers
     TimerEnable(TIMER5_BASE, TIMER_A); //RPM Timer
     TimerEnable(TIMER4_BASE, TIMER_A); //Control Timer
 }
 /*-----------------------------------------------------------*/
-
+// Motor State Machine
 static void prvMotorTask( void *pvParameters )
 {
     uint16_t duty_value = 10;
@@ -267,7 +275,7 @@ static void prvMotorTask( void *pvParameters )
         // if (xQueueReceive(xRPMQueue, &xRecievedRPM, 100) == pdPASS) {
         //     //motor_state.current_rpm = xRecievedRPM.value; UPDATE IN ISR so that it can react quickly
         //     UARTprintf("RPM: %u\n", xRecievedRPM.value);
-        //     UARTprintf("Ticks: %u\n", xRecievedRPM.ticks);
+        //     // UARTprintf("Ticks: %u\n", xRecievedRPM.ticks);
         // }else{
         //     //did not receive from Queue in 100ms
         //     UARTprintf("RPM: 0\n");
@@ -390,16 +398,66 @@ static void vCurrentRead( void *pvParameters )
             power = 24 * current;
 
             // Print the power value
-            UARTprintf("Power mW: %d\n", power);
-
-            // Debug
-            // UARTprintf("Current C: %d\n", current);
-            // UARTprintf("Current B: %d\n", biased_current_B);
+            // UARTprintf("Power mW: %d\n", power);
         }
         print_idx += 1;
     }
 }
 
+/*-----------------------------------------------------------*/
+// RPM Read Task
+void vRPMRead( void *pvParameters )
+{
+    // RPM Setup
+    uint32_t rpm_array [10] = {0};
+    int index = 0;
+    uint32_t sum = 0;
+    uint32_t rpm_filtered = 0;
+
+    // Structure to recv the RPM value
+    RPMQueueData xRPMvalueRecv;
+    // Structure to send the RPM value
+    RPMQueueData xRPMvalueSend;
+    for( ;; )
+    {
+        // Read the RPM value from the queue
+        if (xQueueReceive(xRPMQueueInternal, &xRPMvalueRecv, 0) == pdPASS) {
+            // Store the RPM value in the array
+            rpm_array[index] = xRPMvalueRecv.value;
+            index = (index + 1) % 5;
+            sum = 0;
+            for (int i = 0; i < 5; i++) {
+                sum += rpm_array[i];
+            }
+            rpm_filtered = sum / 5;
+        }
+        // Send the filtered RPM value to the queue
+        xRPMvalueSend.value = rpm_filtered;
+        xRPMvalueSend.ticks = 0;
+        xQueueSend(xRPMQueueExternal, &xRPMvalueSend, 0);
+
+        // Delay for 100Hz
+        vTaskDelay(pdMS_TO_TICKS( 10 ));
+    }
+}
+
+void vRPMReadTest( void *pvParameters )
+{
+    RPMQueueData xRPMvalueRecv;
+    int print_idx = 0;
+    for( ;; )
+    {
+        // Read the RPM value from the queue
+        if (xQueueReceive(xRPMQueueExternal, &xRPMvalueRecv, 0) == pdPASS) 
+        {
+            if ((print_idx % 20) == 0) {
+                // Print the RPM value
+                UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
+            }
+            print_idx += 1;
+        }
+    }
+}
 
 /*-----------------------------------------------------------*/
 
@@ -497,7 +555,7 @@ void HallSensorHandler(void)
 
         xRPMvalue.value = rpm;
         xRPMvalue.ticks = elapsedTime;
-        if (xQueueSend(xRPMQueue, &xRPMvalue, 0) != pdPASS) {
+        if (xQueueSend(xRPMQueueInternal, &xRPMvalue, 0) != pdPASS) {
             // Handle error: Queue is full
         }
         
@@ -537,47 +595,6 @@ void initMotorState(MotorState *motor_state){
     motor_state->current_rpm = 0;
 }
 
-uint32_t calculateCurrent(uint32_t adc_buffer[8], int channel_no) {
-    int32_t v_shunt_mV;
-    // Convert ADC value to voltage across the shunt in millivolts (mV)
-    if (channel_no == 0){
-        uint32_t average_0 = (adc_buffer[0]+ adc_buffer[1]+ adc_buffer[2]+ adc_buffer[3])/4;
-        v_shunt_mV = ((int32_t)average_0) * 3300 / 4096; // Subtract midpoint, scale to mV
-    }else if (channel_no == 4){
-        uint32_t average_4 = (adc_buffer[4]+ adc_buffer[5]+ adc_buffer[6]+ adc_buffer[7])/4;
-        v_shunt_mV = ((int32_t)average_4) * 3300 / 4096; // Subtract midpoint, scale to mV
-    }else{
-        v_shunt_mV = 0;
-    }    
-
-    // Current calculation in milliamperes (mA), using shunt resistor value in milliohms (mOhms)
-    // Shunt value: 7 mOhms (0.007 Ohms)
-    uint32_t current_mA = (v_shunt_mV / 7) / 10; // Calculate current through the shunt resistor, with gain of 10
-
-    return current_mA; // Return the current in milliamperes
-}
-
-uint32_t calculatePower(uint32_t adc_buffer[8]) {
-    // Calculate currents for two phases in milliamperes (mA)
-    uint32_t current1_mA = calculateCurrent(adc_buffer, 0);
-    uint32_t current2_mA = calculateCurrent(adc_buffer, 4);
-    //UARTprintf("Current draw: %u milliAmps\n", current1_mA);
-    //UARTprintf("Current draw: %u milliAmps\n", current2_mA);
-
-    // Calculate the average of two measured currents
-    uint32_t i_avg_mA = (current1_mA + current2_mA) / 2;
-
-    // Estimate the total current as three times the average current
-    uint32_t i_total_mA = current1_mA + current2_mA + i_avg_mA; // Total current for three phases
-
-    // Calculate power in milliwatts (mW), then convert to watts (W)
-    // Note: Motor voltage (VVM) = 24000 mV (24 V)
-    uint32_t power_mW = ((24000 - 3300) * (i_total_mA)) /1000; // Power in mWatts, (mV * Amps)
-
-    return power_mW ; // Convert milliwatts 
-}
-
-
 void MotorRPMTimerStart() {
     // Configure and start timer
     
@@ -606,7 +623,8 @@ void setMotorEstop(){
 }
 
 /*-----------------------------------------------------------*/
-// Current Sensing
+// Current Sensing Functions and Interrupts
+
 void ADC1_Sequence1_Handler(void) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
@@ -620,19 +638,6 @@ void ADC1_Sequence1_Handler(void) {
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-// void ADC1_Read(uint32_t *current) {
-//     // Trigger the ADC conversion.
-//     ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
-
-//     // Wait for the semaphore to be given by the interrupt handler
-//     if (xSemaphoreTake(xADC1_Semaphore, portMAX_DELAY) == pdTRUE) {
-//         // Read ADC FIFO buffer from sample sequence
-//         ADCSequenceDataGet(ADC1_BASE, ADC_SEQ_1, current);
-//     }
-
-//     // Clear any potential pending ADC interrupts (safety)
-//     ADCIntClear(ADC1_BASE, ADC_SEQ_1);
-// }
 void ADC1_Read(uint32_t *current_ch0, uint32_t *current_ch4)
 {
     ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);

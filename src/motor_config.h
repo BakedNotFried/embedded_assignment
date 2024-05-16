@@ -29,7 +29,8 @@
 
 // Global Structs
 SemaphoreHandle_t xADC1_Semaphore;
-QueueHandle_t xRPMQueue;
+QueueHandle_t xRPMQueueInternal;
+QueueHandle_t xRPMQueueExternal;
 
 typedef struct 
 {
