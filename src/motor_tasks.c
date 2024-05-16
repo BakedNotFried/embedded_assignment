@@ -95,6 +95,8 @@ void vCreateMotorTask( void );
  */
 void HallSensorHandler(void);
 void ADC1_Sequence1_Handler(void);
+// Configuration for the HW Timer 3A
+static void prvConfigureHWTimer3A( void );
 
 //helper functions
 void ADC1_Read(uint32_t *current);
@@ -178,7 +180,7 @@ static void prvMotorTask( void *pvParameters )
     /* Initialise the motors and set the duty cycle (speed) in microseconds */
     initMotorState(&motor_state); // set the struct up
 
-    setMotorRPM(1000);
+    setMotorRPM(200);
     // stopMotor(1);
 
     enableMotor();
@@ -449,32 +451,7 @@ void initMotorState(MotorState *motor_state){
     motor_state->current_rpm = 0;
 }
 
-void ADC1_Sequence1_Handler(void) {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-    // Clear the ADC sequence interrupt status
-    ADCIntClear(ADC1_BASE, ADC_SEQ_1);
-
-    // Give the semaphore from ISR
-    xSemaphoreGiveFromISR(xADC1_Semaphore, &xHigherPriorityTaskWoken);
-
-    // Yield if a higher priority task was woken
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-}
-
-void ADC1_Read(uint32_t *current) {
-    // Trigger the ADC conversion.
-    ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
-
-    // Wait for the semaphore to be given by the interrupt handler
-    if (xSemaphoreTake(xADC1_Semaphore, portMAX_DELAY) == pdTRUE) {
-        // Read ADC FIFO buffer from sample sequence
-        ADCSequenceDataGet(ADC1_BASE, ADC_SEQ_1, current);
-    }
-
-    // Clear any potential pending ADC interrupts (safety)
-    ADCIntClear(ADC1_BASE, ADC_SEQ_1);
-}
 
 uint32_t calculateCurrent(uint32_t adc_buffer[8], int channel_no) {
     int32_t v_shunt_mV;
@@ -542,4 +519,55 @@ void setMotorEstop(){
     motor_state.Estop_condition = Enabled;
     motor_state.set_rpm = 0;
     //post Sem
+}
+
+/*-----------------------------------------------------------*/
+// Current Sensing
+void ADC1_Sequence1_Handler(void) {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    // Clear the ADC sequence interrupt status
+    ADCIntClear(ADC1_BASE, ADC_SEQ_1);
+
+    // Give the semaphore from ISR
+    xSemaphoreGiveFromISR(xADC1_Semaphore, &xHigherPriorityTaskWoken);
+
+    // Yield if a higher priority task was woken
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+void ADC1_Read(uint32_t *current) {
+    // Trigger the ADC conversion.
+    ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
+
+    // Wait for the semaphore to be given by the interrupt handler
+    if (xSemaphoreTake(xADC1_Semaphore, portMAX_DELAY) == pdTRUE) {
+        // Read ADC FIFO buffer from sample sequence
+        ADCSequenceDataGet(ADC1_BASE, ADC_SEQ_1, current);
+    }
+
+    // Clear any potential pending ADC interrupts (safety)
+    ADCIntClear(ADC1_BASE, ADC_SEQ_1);
+}
+
+// Timer 3A for triggering current reads
+static void prvConfigureHWTimer6A( void )
+{
+    /* The Timer 3 peripheral must be enabled for use. */
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER3);
+
+    /* Configure Timer 3 in full-width periodic mode. */
+    TimerConfigure(TIMER3_BASE, TIMER_CFG_PERIODIC);
+
+    /* Set the Timer 3A load value to run at 200 Hz. */
+    TimerLoadSet(TIMER3_BASE, TIMER_A, configCPU_CLOCK_HZ / 2);
+
+    /* Configure the Timer 3A interrupt for timeout. */
+    TimerIntEnable(TIMER3_BASE, TIMER_TIMA_TIMEOUT);
+
+    /* Enable the Timer 3A interrupt in the NVIC. */
+    IntEnable(INT_TIMER3A);
+
+    // /* Enable global interrupts in the NVIC. */
+    IntMasterEnable();
 }
