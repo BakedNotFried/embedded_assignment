@@ -1,18 +1,65 @@
 /*
+ * hello
+ *
+ * Copyright (C) 2022 Texas Instruments Incorporated
+ * 
+ * 
+ *  Redistribution and use in source and binary forms, with or without 
+ *  modification, are permitted provided that the following conditions 
+ *  are met:
+ *
+ *    Redistributions of source code must retain the above copyright 
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ *    Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the 
+ *    documentation and/or other materials provided with the   
+ *    distribution.
+ *
+ *    Neither the name of Texas Instruments Incorporated nor the names of
+ *    its contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+*/
+
+/******************************************************************************
+ *
+ * This motor test project provides an example of how to use the motor library
+ * with a platformio / freeRTOS project. The main script initialises the hall 
+ * sensor interrupt, which run the update_motor function. The program also launches 
+ * a task that initialises the motors before ramping the speed from 10% to 100%.
+ * Once the speed reaches 100%, the motor is stopped and the program ends.
+ * 
+ */
+
 /* Standard includes. */
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
 
+
 /* Kernel includes. */
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
-#include "event_groups.h"
 
 /* Hardware includes. */
+#include "driverlib/pin_map.h"
 #include "inc/hw_memmap.h"
 #include "inc/hw_sysctl.h"
+#include "inc/hw_ints.h"
 #include "driverlib/gpio.h"
 #include "driverlib/interrupt.h"
 #include "driverlib/pin_map.h"
@@ -22,72 +69,62 @@
 #include "driverlib/uart.h"
 #include "drivers/rtos_hw_drivers.h"
 #include "utils/uartstdio.h"
-#include "inc/hw_ints.h"
-#include "driverlib/debug.h"
-#include "driverlib/i2c.h"
-#include "drivers/opt3001.h"
+#include "driverlib/gpio.h"
+#include "driverlib/pwm.h"
+
+
+// Motor lib
+#include <motorlib.h>
+#include "driverlib/adc.h"
+#include "motor_config.h"
+#include "driverlib/timer.h"
+
 /*-----------------------------------------------------------*/
-/*                         Shared Global Section             */
+
+
 /* The system clock frequency. */
 uint32_t g_ui32SysClock;
 
-// UART Setup
-static void prvConfigureUART(void);
-
-// Hardware setup. Sets clock, resets pins and init UART
+/* Set up the hardware ready to run this demo. */
 static void prvSetupHardware( void );
 
+/* This function sets up UART0 to be used for a console to display information
+ * as the example is running. */
+static void prvConfigureUART(void);
+
+/* API to trigger the 'Hello world' task. */
+extern void vCreateMotorTask( void );
+extern void ADC1_Sequence1_Handler(void);
+static void prvConfigureHallInts( void );
+static void prvADC1_Init(void) ;
+static void prvConfigureMotorRPMTimer(void);
+static void prvConfigureMotorControlTimer(void);
 /*-----------------------------------------------------------*/
-/*                   Sensor Tasks Global Section             */
-// Global Semaphores
-SemaphoreHandle_t xI2C0Semaphore = NULL;
 
-// Functions for initializing tasks
-extern void vSensorTaskSetup( void );
-
-/*-----------------------------------------------------------*/
-/*                   Motor Tasks Global Section              */
-
-
-/*-----------------------------------------------------------*/
-/*                   GUI Tasks Global Section                */
-
-/*-----------------------------------------------------------*/
 int main( void )
 {
-    /*                   Shared Main Setup                     */
+    /* Prepare the hardware to run this demo. */
     prvSetupHardware();
 
-    /*                   Sensor Main Setup (Cal)               */
-    // Semaphore for I2C non-blocking read/write
-    xI2C0Semaphore = xSemaphoreCreateBinary();
+    /* Configure UART0 to send messages to terminal. */
+    prvConfigureUART();
 
-    if ( (xI2C0Semaphore != NULL) )
-    {
-        // Create the tasks associated with sensor reading
-        vSensorTaskSetup();
+    UARTprintf("Input Configuration");
 
-    }
-    /*-----------------------------------------------------------*/
+    /* Create the Hello task to output a message over UART. */
+    vCreateMotorTask();
 
-
-    /*                   Motor Main Setup (Jim)                  */
-
-    /*-----------------------------------------------------------*/
-
-
-    /*                   GUI Main Setup (Nikolaj)                */
-
-    /*-----------------------------------------------------------*/
-
-    // Start the scheduler
+    /* Start the tasks and timer running. */
     vTaskStartScheduler();
-    // Should never reach here
+
+    /* If all is well, the scheduler will now be running, and the following
+    line will never be reached.  If the following line does execute, then
+    there was insufficient FreeRTOS heap memory available for the idle and/or
+    timer tasks to be created.  See the memory management section on the
+    FreeRTOS web site for more details. */
     for( ;; );
 }
-
 /*-----------------------------------------------------------*/
-/*                    Initial Hardware Setup                 */
 static void prvConfigureUART(void)
 {
     /* Enable GPIO port A which is used for UART0 pins.
@@ -115,7 +152,7 @@ static void prvConfigureUART(void)
 }
 /*-----------------------------------------------------------*/
 
-static void prvSetupHardware( void )
+static void prvSetupHardware(void)
 {
     /* Run from the PLL at configCPU_CLOCK_HZ MHz. */
     g_ui32SysClock = MAP_SysCtlClockFreqSet((SYSCTL_XTAL_25MHZ |
@@ -125,21 +162,177 @@ static void prvSetupHardware( void )
     /* Configure device pins. */
     PinoutSet(false, false);
 
-    /* Configure UART0 to send messages to terminal. */
-    prvConfigureUART();
-}
 
+    /* Set-up interrupts for hall sensors */
+    prvConfigureHallInts();
+
+    prvADC1_Init();
+
+    prvConfigureMotorRPMTimer();
+
+    prvConfigureMotorControlTimer();
+}
 /*-----------------------------------------------------------*/
-/*                 RTOS Shenanigans                          */
+
 void vApplicationMallocFailedHook( void )
 {
+    /* vApplicationMallocFailedHook() will only be called if
+    configUSE_MALLOC_FAILED_HOOK is set to 1 in FreeRTOSConfig.h.  It is a hook
+    function that will get called if a call to pvPortMalloc() fails.
+    pvPortMalloc() is called internally by the kernel whenever a task, queue,
+    timer or semaphore is created.  It is also called by various parts of the
+    demo application.  If heap_1.c or heap_2.c are used, then the size of the
+    heap available to pvPortMalloc() is defined by configTOTAL_HEAP_SIZE in
+    FreeRTOSConfig.h, and the xPortGetFreeHeapSize() API function can be used
+    to query the size of free heap space that remains (although it does not
+    provide information on how the remaining heap might be fragmented). */
     IntMasterDisable();
     for( ;; );
 }
 /*-----------------------------------------------------------*/
+static void prvConfigureHallInts( void )
+{
+    /* Configure GPIO ports to trigger an interrupt on rising/falling or both edges. */
+    /* Enable the interrupt for LaunchPad GPIO Port in the GPIO peripheral. */
+    /* Enable the Ports interrupt in the NVIC. */
+    /* Enable global interrupts in the NVIC. */
+
+    // Enable the peripheral for Hall Ports
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOM);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOH);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
+
+    // Wait for the GPIO module to be ready
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_GPIOM))
+    {
+    }
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_GPIOH))
+    {
+    }
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_GPION))
+    {
+    }
+    
+    // Set the pin type for HALL pins as input
+    GPIOPinTypeGPIOInput(HALL_A_PORT, HALL_A_PIN);
+    GPIOPinTypeGPIOInput(HALL_B_PORT, HALL_B_PIN);
+    GPIOPinTypeGPIOInput(HALL_C_PORT, HALL_C_PIN);
+
+    // Set the interrupt type for both falling and rising edge
+    GPIOIntTypeSet(HALL_A_PORT, HALL_A_PIN, GPIO_BOTH_EDGES);
+    GPIOIntTypeSet(HALL_B_PORT, HALL_B_PIN, GPIO_BOTH_EDGES);
+    GPIOIntTypeSet(HALL_C_PORT, HALL_C_PIN, GPIO_BOTH_EDGES);
+
+    // Enable the interrupt for GPIOP pin 2
+    GPIOIntEnable(HALL_A_PORT, HALL_A_PIN);
+    GPIOIntEnable(HALL_B_PORT, HALL_B_PIN);
+    GPIOIntEnable(HALL_C_PORT, HALL_C_PIN);
+
+    // Enable the GPIOP interrupt in the NVIC
+    IntEnable(INT_GPIOM);
+    IntEnable(INT_GPION);
+    IntEnable(INT_GPIOH);
+
+    IntMasterEnable(); //
+}
+
+static void prvADC1_Init(void) //ADC1 on PE3 
+{
+    SysCtlPeripheralEnable( SYSCTL_PERIPH_ADC1 );
+
+    SysCtlPeripheralEnable( SYSCTL_PERIPH_GPIOE );
+    SysCtlPeripheralEnable( SYSCTL_PERIPH_GPIOD );
+
+    //TODO: CALIBRATE? 
+
+    //Makes GPIO an INPUT and sets them to be ANALOG
+    GPIOPinTypeADC( GPIO_PORTE_BASE, GPIO_PIN_3 );
+    GPIOPinTypeADC( GPIO_PORTD_BASE, GPIO_PIN_7 );
+
+    ADCSequenceConfigure( ADC1_BASE, ADC_SEQ_1, ADC_TRIGGER_PROCESSOR, 0 );
+    
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP, ADC_CTL_CH0);
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+1, ADC_CTL_CH0);
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+2, ADC_CTL_CH0);
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+3, ADC_CTL_CH0);
+
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+4, ADC_CTL_CH4);
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+5, ADC_CTL_CH4);
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+6, ADC_CTL_CH4);
+    ADCSequenceStepConfigure(ADC1_BASE, ADC_SEQ_1, ADC_STEP+7, ADC_CTL_IE | ADC_CTL_CH4 | ADC_CTL_END );
+    //uint32_t ui32Base, uint32_t ui32SequenceNum, uint32_t ui32Step, uint32_t ui32Config
+    
+    ADCSequenceEnable( ADC1_BASE, ADC_SEQ_1);
+    ADCIntClear( ADC1_BASE, ADC_SEQ_1);
+
+    // Create the semaphore
+    xADC1_Semaphore = xSemaphoreCreateBinary();
+
+    // Register the ADC1 sequence 1 interrupt handler
+    ADCIntRegister(ADC1_BASE, ADC_SEQ_1, ADC1_Sequence1_Handler);
+
+    // Enable the ADC1 sequence 1 interrupt
+    ADCIntEnable(ADC1_BASE, ADC_SEQ_1);
+}
+
+
+static void prvConfigureMotorRPMTimer(void) {
+    // Enable the peripheral clock for the timer
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER5);
+
+    // Wait for the timer module to be ready
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_TIMER5)) {}
+
+    // Configure Timer5 as a 32-bit timer in periodic mode
+    TimerConfigure(TIMER5_BASE, TIMER_CFG_PERIODIC);
+
+    //120Mhz sys clock, load set for 2 seconds as low RPM eg 30 RPM = 1 revolution every 2 seconds
+    uint32_t ui32Period = SysCtlClockGet()*2; // 
+    TimerLoadSet(TIMER5_BASE, TIMER_A, ui32Period - 1);
+}
+
+static void prvConfigureMotorControlTimer(void) {
+    uint32_t ui32Period;
+
+    // Enable the peripheral clock for the timer
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER4);
+
+    // Wait for the timer module to be ready
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_TIMER4)) {}
+
+    // Configure Timer4 as a 32-bit timer in periodic mode
+    TimerConfigure(TIMER4_BASE, TIMER_CFG_PERIODIC);
+
+    // Calculate the load value for a 100 ms interval
+    // System clock in Hz = SysCtlClockGet(), e.g., 120 MHz = 120000000 Hz
+    // Timer interval in seconds = 10 ms = 0.01 seconds
+    // Load value = (System Clock * Timer Interval) - 1
+    ui32Period = (SysCtlClockGet() / 100) - 1;
+    TimerLoadSet(TIMER4_BASE, TIMER_A, ui32Period);
+
+    // Enable the timer to start running
+    TimerEnable(TIMER4_BASE, TIMER_A);
+
+    // set up an interrupt for the timer
+    TimerIntEnable(TIMER4_BASE, TIMER_TIMA_TIMEOUT);
+    IntEnable(INT_TIMER4A);
+}
+
+
+
+/*-----------------------------------------------------------*/
 
 void vApplicationIdleHook( void )
 {
+    /* vApplicationIdleHook() will only be called if configUSE_IDLE_HOOK is set
+    to 1 in FreeRTOSConfig.h.  It will be called on each iteration of the idle
+    task.  It is essential that code added to this hook function never attempts
+    to block in any way (for example, call xQueueReceive() with a block time
+    specified, or call vTaskDelay()).  If the application makes use of the
+    vTaskDelete() API function (as this demo application does) then it is also
+    important that vApplicationIdleHook() is permitted to return to its calling
+    function, because it is the responsibility of the idle task to clean up
+    memory allocated by the kernel to any task that has since been deleted. */
 }
 /*-----------------------------------------------------------*/
 

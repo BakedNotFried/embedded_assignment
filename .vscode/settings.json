@@ -1,7 +1,0 @@
-{
-    "files.associations": {
-        "stdbool.h": "c",
-        "freertos.h": "c"
-    },
-    "cmake.configureOnOpen": true
-}
