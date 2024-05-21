@@ -1,53 +1,3 @@
-/*
- * hello_task
- *
- * Copyright (C) 2022 Texas Instruments Incorporated
- * 
- * 
- *  Redistribution and use in source and binary forms, with or without 
- *  modification, are permitted provided that the following conditions 
- *  are met:
- *
- *    Redistributions of source code must retain the above copyright 
- *    notice, this list of conditions and the following disclaimer.
- *
- *    Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the 
- *    documentation and/or other materials provided with the   
- *    distribution.
- *
- *    Neither the name of Texas Instruments Incorporated nor the names of
- *    its contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
- *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
- *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
-*/
-
-/******************************************************************************
- *
- * The Hello task creates a simple task to handle the UART output for the
- * 'Hello World!' message.  A loop is executed five times with a count down
- * before ending with the self-termination of the task that prints the UART
- * message by use of vTaskDelete.  The loop also includes a one second delay
- * that is achieved by using vTaskDelay.
- *
- * This example uses UARTprintf for output of UART messages.  UARTprintf is not
- * a thread-safe API and is only being used for simplicity of the demonstration
- * and in a controlled manner.
- *
- */
-
 /* Standard includes. */
 #include "driverlib/pin_map.h"
 #include <stdio.h>
@@ -84,7 +34,7 @@
 static void prvMotorTask( void *pvParameters );
 static void vCurrentRead( void *pvParameters );
 static void vRPMRead( void *pvParameters );
-static void vRPMReadTest( void *pvParameters );
+static void vQueueReadTest( void *pvParameters );
 
 // Tasks Creator
 void vCreateMotorTask( void );
@@ -105,9 +55,6 @@ void initMotorState(MotorState *motor_state);
 void setMotorRPM(uint16_t rpm);
 void setMotorEstop(void);
 
-uint32_t calculateCurrent(uint32_t adc_buffer[8], int channel_no);
-uint32_t calculatePower(uint32_t adc_buffer[8]);
-
 // Function Handle for current read task
 TaskHandle_t vCurrentReadHandle;
 TaskHandle_t vRPMReadHandle;
@@ -115,9 +62,17 @@ TaskHandle_t vRPMReadHandle;
 //external structs
 extern SemaphoreHandle_t xADC1_Semaphore;
 extern MotorState motor_state;
+
+// Queues for RPM, Current and Power
 extern QueueHandle_t xRPMQueueExternal;
 extern QueueHandle_t xRPMQueueInternal;
+extern QueueHandle_t xCurrentQueueExternal;
+extern QueueHandle_t xPowerQueueExternal;
+
+// Structs for RPM, Current and Power
 extern RPMQueueData xRPMvalue;
+extern CurrentQueueData xCurrentvalue;
+extern PowerQueueData xPowervalue;
 
 //globals
 volatile uint32_t pulseCount = 0;
@@ -132,9 +87,11 @@ void vCreateMotorTask( void )
 {
     xRPMQueueInternal = xQueueCreate(1, sizeof( xRPMvalue ) );
     xRPMQueueExternal = xQueueCreate(1, sizeof( xRPMvalue ) );
-    if( ( xRPMQueueExternal == NULL ) || ( xRPMQueueInternal == NULL ) )
+    xCurrentQueueExternal = xQueueCreate(1, sizeof( xCurrentvalue ) );
+    xPowerQueueExternal = xQueueCreate(1, sizeof( xPowervalue ) );
+    if( ( xRPMQueueExternal == NULL ) || ( xRPMQueueInternal == NULL ) || ( xCurrentQueueExternal == NULL ) || ( xPowerQueueExternal == NULL ) )
     {
-        UARTprintf("RPM Queue not created. \n");
+        UARTprintf("RPM Queue or Current Queue or Power Queue creation failed\n");
     }
 
     xTaskCreate( prvMotorTask,
@@ -145,7 +102,7 @@ void vCreateMotorTask( void )
                  NULL );
     
     xTaskCreate( vCurrentRead,
-                 "Current Read",
+                 "Current/Power Read",
                  configMINIMAL_STACK_SIZE,
                  NULL,
                  tskIDLE_PRIORITY + 1,
@@ -158,8 +115,8 @@ void vCreateMotorTask( void )
                  tskIDLE_PRIORITY + 1,
                  &vRPMReadHandle );
     
-    xTaskCreate( vRPMReadTest,
-                 "RPM Read Test",
+    xTaskCreate( vQueueReadTest,
+                 "Queue Read Test",
                  configMINIMAL_STACK_SIZE,
                  NULL,
                  tskIDLE_PRIORITY + 1,
@@ -329,6 +286,10 @@ static void vCurrentRead( void *pvParameters )
     // Configure the HW Timer 3A
     prvConfigureHWTimer3A();
 
+    // Structures to send the current and power values
+    CurrentQueueData xCurrentvalueSend;
+    PowerQueueData xPowervalueSend;
+
     // Setup
     uint32_t biased_current_C = 0;
     uint32_t biased_current_B = 0;
@@ -379,6 +340,7 @@ static void vCurrentRead( void *pvParameters )
         }
         current_C_filtered = sum_C / arr_len;
         current_B_filtered = sum_B / arr_len;
+
         // Estimate the current on the A coil
         current_A = (current_C_filtered + current_B_filtered) / 2;
 
@@ -390,17 +352,14 @@ static void vCurrentRead( void *pvParameters )
         current *= 1000;
         current /= 4096;
 
-        if ((print_idx % 100) == 0) {
-            // Print the current value mA
-            // UARTprintf("Current mA: %d\n", current);
+        // Calculate power -> P = V * I
+        power = current * 24;
 
-            // Print power. VI
-            power = 24 * current;
-
-            // Print the power value
-            // UARTprintf("Power mW: %d\n", power);
-        }
-        print_idx += 1;
+        // Send the current and power value to the queue
+        xCurrentvalueSend.value = current;
+        xPowervalueSend.value = power;
+        xQueueSend(xCurrentQueueExternal, &xCurrentvalueSend, 0);
+        xQueueSend(xPowerQueueExternal, &xPowervalueSend, 0);
     }
 }
 
@@ -441,18 +400,24 @@ void vRPMRead( void *pvParameters )
     }
 }
 
-void vRPMReadTest( void *pvParameters )
+void vQueueReadTest( void *pvParameters )
 {
     RPMQueueData xRPMvalueRecv;
+    CurrentQueueData xCurrentvalueRecv;
+    PowerQueueData xPowervalueRecv;
     int print_idx = 0;
     for( ;; )
     {
         // Read the RPM value from the queue
-        if (xQueueReceive(xRPMQueueExternal, &xRPMvalueRecv, 0) == pdPASS) 
+        if ( (xQueueReceive(xRPMQueueExternal, &xRPMvalueRecv, pdMS_TO_TICKS( 100 )) == pdPASS) && (xQueueReceive(xCurrentQueueExternal, &xCurrentvalueRecv, pdMS_TO_TICKS( 100 )) == pdPASS) && (xQueueReceive(xPowerQueueExternal, &xPowervalueRecv, pdMS_TO_TICKS( 100 )) == pdPASS) )
         {
-            if ((print_idx % 20) == 0) {
-                // Print the RPM value
+            if ((print_idx % 100) == 0) {
+                // Print the values
+                UARTprintf("\n");
                 UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
+                UARTprintf("Current: %d\n", xCurrentvalueRecv.value);
+                UARTprintf("Power: %u\n", xPowervalueRecv.value);
+                UARTprintf("\n");
             }
             print_idx += 1;
         }

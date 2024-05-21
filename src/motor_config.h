@@ -31,12 +31,26 @@
 SemaphoreHandle_t xADC1_Semaphore;
 QueueHandle_t xRPMQueueInternal;
 QueueHandle_t xRPMQueueExternal;
+QueueHandle_t xCurrentQueueInternal;
+QueueHandle_t xCurrentQueueExternal;
+QueueHandle_t xPowerQueueInternal;
+QueueHandle_t xPowerQueueExternal;
 
 typedef struct 
 {
     uint32_t value;
     uint32_t ticks; //for debug
 } RPMQueueData;
+
+typedef struct 
+{
+    int32_t value;  // Signed
+} CurrentQueueData;
+
+typedef struct 
+{
+    uint32_t value; // Unsigned
+} PowerQueueData;
 
 #ifndef MOTOR_STATE_H
 #define MOTOR_STATE_H
