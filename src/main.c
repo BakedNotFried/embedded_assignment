@@ -26,6 +26,7 @@
 #include "driverlib/debug.h"
 #include "driverlib/i2c.h"
 #include "drivers/opt3001.h"
+#include "driverlib/pwm.h"
 
 // Motor lib
 #include <motorlib.h>
@@ -74,9 +75,8 @@ int main( void )
 {
     /*                   Shared Main Setup                     */
     prvSetupHardware();
-
-    /* Configure UART0 to send messages to terminal. */
     prvConfigureUART();
+    UARTprintf("Input Configuration");  // This is needed to make UART work. Don't Delete (idk wtf is going on here)
 
     /*                   Sensor Main Setup (Cal)               */
     // Semaphore for I2C non-blocking read/write
@@ -85,26 +85,24 @@ int main( void )
     // Mutex for I2C
     xI2C0Mutex = xSemaphoreCreateMutex();
 
-    // if ( (xI2C0OPTSemaphore != NULL) && (xI2C0BMISemaphore != NULL) && (xI2C0Mutex != NULL) )
-    // {
-    //     // Create the tasks associated with sensor reading
-    //     vSensorTaskSetup();
+    if ( (xI2C0OPTSemaphore != NULL) && (xI2C0BMISemaphore != NULL) && (xI2C0Mutex != NULL) )
+    {
+        // Create the tasks associated with sensor reading
+        vSensorTaskSetup();
+    }
 
-    // }
+    UARTprintf("Input Configuration");  // This is needed to make UART work. Don't Delete (idk wtf is going on here)
+    
     /*-----------------------------------------------------------*/
-
     /*                   Motor Main Setup (Jim)                  */
     // Do Motor Stuff
     vCreateMotorTask();
 
 
     /*-----------------------------------------------------------*/
-
-
     /*                   GUI Main Setup (Nikolaj)                */
 
     /*-----------------------------------------------------------*/
-
     // Start the scheduler
     vTaskStartScheduler();
     // Should never reach here

@@ -34,6 +34,9 @@
 #include "drivers/bmi160.h"
 #include "drivers/bmi160_defs.h"
 
+// Motor config
+#include "motor_config.h"
+
 // /* Display includes. */
 // #include "grlib/grlib.h"
 // #include "grlib/widget.h"
@@ -57,19 +60,12 @@ TaskHandle_t xOpt3001ReadHandle;
 TaskHandle_t xBMI160ReadHandle;
 
 // Queues for Sensor Data Publishing
-QueueHandle_t xOPT3001Queue = NULL;
-QueueHandle_t xBMI160Queue = NULL;
+extern QueueHandle_t xOPT3001Queue;
+extern QueueHandle_t xBMI160Queue;
 
 // Structs for Sensor Data Publishing
-struct OPT3001Message
-{
-    uint32_t ulfilteredLux;
-} xOPT3001Message;
-
-struct BMI160Message
-{
-    float ulfilteredAccel;
-} xBMI160Message;
+extern OPT3001Message xOPT3001Message;
+extern BMI160Message xBMI160Message;
 
 // Configuration for the OPT3001 sensor
 static void prvConfigureOPT3001Sensor( void );
@@ -93,8 +89,13 @@ void vSensorTaskSetup( void );
 void vSensorTaskSetup( void )
 {
     // Create queues for sensor data pub
-    xOPT3001Queue = xQueueCreate(1, sizeof(struct OPT3001Message));
-    xBMI160Queue = xQueueCreate(1, sizeof(struct BMI160Message));
+    xOPT3001Queue = xQueueCreate(1, sizeof(xOPT3001Message));
+    xBMI160Queue = xQueueCreate(1, sizeof(xBMI160Message));
+
+    if (xOPT3001Queue == NULL || xBMI160Queue == NULL)
+    {
+        UARTprintf("Error creating Sensor Queues\n");
+    }
 
     // Create the task to read the optical sensor
     xTaskCreate( vOPT3001Read,
@@ -132,7 +133,7 @@ static void vOPT3001Read( void *pvParameters )
     int index = 0;
 
     // Queue setup
-    struct OPT3001Message xOPT3001Message;
+    OPT3001Message xOPT3001Message;
 
     // Timer Enable
     TimerEnable(TIMER7_BASE, TIMER_A);
@@ -168,10 +169,10 @@ static void vOPT3001Read( void *pvParameters )
 
                 // Publish to Queue
                 xOPT3001Message.ulfilteredLux = filtered_lux;
-                xQueueSend(xOPT3001Queue, ( void * ) &xOPT3001Message, ( TickType_t ) 0 );
+                xQueueSend(xOPT3001Queue, ( void * ) &xOPT3001Message, 0);
 
                 // DEBUG
-                UARTprintf("\nFiltered Lux: %5d\n", filtered_lux);
+                // UARTprintf("Filtered Lux: %5d\n", filtered_lux);
                 // Get the sensor configuration
                 // uint16_t config;
                 // readI2C(0x47, 0x7F, (uint8_t *)&config);
@@ -185,6 +186,9 @@ static void vOPT3001Read( void *pvParameters )
 // Periodic IMU Read Task
 static void xBMI160Read( void *pvParameters )
 {
+    // debug
+    int print_idx = 0;
+
     // // Configure I2C0
     prvConfigureI2C0();
 
@@ -209,7 +213,7 @@ static void xBMI160Read( void *pvParameters )
     int index = 0;
 
     // Queue setup
-    struct BMI160Message xBMI160Message;
+    BMI160Message xBMI160Message;
 
     // BMI160 Config
     uint8_t normal_accl_mode = 0x11;                                // Normal Mode, Accel Only
@@ -285,14 +289,20 @@ static void xBMI160Read( void *pvParameters )
 
             // Publish to Queue
             xBMI160Message.ulfilteredAccel = filtered_accel;
-            xQueueSend(xBMI160Queue, ( void * ) &xBMI160Message, ( TickType_t ) 0 );
+            xQueueSend(xBMI160Queue, &xBMI160Message, 0);
 
             // // DEBUG
             // if (filtered_accel >  0.5)
             // {
             //     UARTprintf("EMERGENCY!\n");
             // }
-            UARTprintf("\nBMI160 Jerk: %d\n", int_jerk);
+            // UARTprintf("\nBMI160 Jerk: %d\n", int_jerk);
+            // if ((print_idx % 50) == 0) {
+            //     // Print the values
+            //     UARTprintf("BMI160 Jerk: %d\n", int_jerk);
+            // }
+            // print_idx += 1;
+
         }
     }
 }
@@ -302,25 +312,34 @@ static void xBMI160Read( void *pvParameters )
 static void prvConfigureOPT3001Sensor( void )
 {
         // The I2C0 peripheral must be enabled before use.
-        SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
-        SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+        // SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C2);
+        // SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
 
         // Configure the pin muxing for I2C0 functions on port B2 and B3.
         // This step is not necessary if your part does not support pin muxing.
-        GPIOPinConfigure(GPIO_PB2_I2C0SCL);
-        GPIOPinConfigure(GPIO_PB3_I2C0SDA);
+        // GPIOPinConfigure(GPIO_PB2_I2C0SCL);
+        // GPIOPinConfigure(GPIO_PB3_I2C0SDA);
+        GPIOPinConfigure(GPIO_PN5_I2C2SCL);
+        GPIOPinConfigure(GPIO_PN4_I2C2SDA);
 
         // Select the I2C function for these pins.  This function will also
         // configure the GPIO pins pins for I2C operation, setting them to
         // open-drain operation with weak pull-ups.  Consult the data sheet
         // to see which functions are allocated per pin.
-        GPIOPinTypeI2CSCL(GPIO_PORTB_BASE, GPIO_PIN_2);
-        GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_3);
-        I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false);
+        // GPIOPinTypeI2CSCL(GPIO_PORTB_BASE, GPIO_PIN_2);
+        // GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_3);
+        GPIOPinTypeI2CSCL(GPIO_PORTN_BASE, GPIO_PIN_5);
+        GPIOPinTypeI2C(GPIO_PORTN_BASE, GPIO_PIN_4);
+        // I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false);
+        I2CMasterInitExpClk(I2C2_BASE, SysCtlClockGet(), false);
 
         // Interrupt Configuration for I2C
-        IntEnable(INT_I2C0);
-        I2CMasterIntEnable(I2C0_BASE);
+        // IntEnable(INT_I2C0);
+        // I2CMasterIntEnable(I2C0_BASE);
+        IntEnable(INT_I2C2);
+        I2CMasterIntEnable(I2C2_BASE);
 
         // // Enable Master interrupt
         IntMasterEnable();
@@ -346,25 +365,36 @@ static void prvConfigureOPT3001Sensor( void )
 static void prvConfigureI2C0( void )
 {
         // The I2C0 peripheral must be enabled before use.
-        SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
-        SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+        // SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
+        // SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
+        // I2C2 and GPION
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C2);
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
 
         // Configure the pin muxing for I2C0 functions on port B2 and B3.
         // This step is not necessary if your part does not support pin muxing.
-        GPIOPinConfigure(GPIO_PB2_I2C0SCL);
-        GPIOPinConfigure(GPIO_PB3_I2C0SDA);
+        // GPIOPinConfigure(GPIO_PB2_I2C0SCL);
+        // GPIOPinConfigure(GPIO_PB3_I2C0SDA);
+        GPIOPinConfigure(GPIO_PN5_I2C2SCL);
+        GPIOPinConfigure(GPIO_PN4_I2C2SDA);
 
         // Select the I2C function for these pins.  This function will also
         // configure the GPIO pins pins for I2C operation, setting them to
         // open-drain operation with weak pull-ups.  Consult the data sheet
         // to see which functions are allocated per pin.
-        GPIOPinTypeI2CSCL(GPIO_PORTB_BASE, GPIO_PIN_2);
-        GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_3);
-        I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false);
+        // GPIOPinTypeI2CSCL(GPIO_PORTB_BASE, GPIO_PIN_2);
+        // GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_3);
+        // I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false);
+        GPIOPinTypeI2CSCL(GPIO_PORTN_BASE, GPIO_PIN_5);
+        GPIOPinTypeI2C(GPIO_PORTN_BASE, GPIO_PIN_4);
+        I2CMasterInitExpClk(I2C2_BASE, SysCtlClockGet(), false);
+
 
         // Interrupt Configuration for I2C
-        IntEnable(INT_I2C0);
-        I2CMasterIntEnable(I2C0_BASE);
+        // IntEnable(INT_I2C0);
+        // I2CMasterIntEnable(I2C0_BASE);
+        IntEnable(INT_I2C2);
+        I2CMasterIntEnable(I2C2_BASE);
 
         // // Enable Master interrupt
         IntMasterEnable();
@@ -414,10 +444,11 @@ static void prvConfigureHWTimer7A( void )
 
 /*-----------------------------------------------------------*/
 // Interrupt Handlers
-void xI2C0Handler( void )
+void xI2C2Handler( void )
 {
     /* Clear the interrupt. */
-    I2CMasterIntClear(I2C0_BASE);
+    // I2CMasterIntClear(I2C0_BASE);
+    I2CMasterIntClear(I2C2_BASE);
 
     // // Check which sensor is using the I2C bus
     if (g_I2C_flag == OPT3001)

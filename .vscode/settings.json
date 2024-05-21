@@ -10,7 +10,16 @@
         "stdint.h": "c",
         "semphr.h": "c",
         "array": "c",
-        "string": "c"
+        "string": "c",
+        "hw_memmap.h": "c",
+        "gpio.h": "c",
+        "interrupt.h": "c",
+        "pin_map.h": "c",
+        "rom.h": "c",
+        "rom_map.h": "c",
+        "uart.h": "c",
+        "rtos_hw_drivers.h": "c",
+        "pwm.h": "c"
     },
     "cmake.configureOnOpen": true
 }

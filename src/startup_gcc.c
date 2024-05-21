@@ -44,7 +44,7 @@ static void IntDefaultHandler(void);
 extern void xPortPendSVHandler(void);
 extern void vPortSVCHandler(void);
 extern void xPortSysTickHandler(void);
-extern void xI2C0Handler(void);
+extern void xI2C2Handler(void);
 extern void xTimer7AHandler(void);
 extern void xTimer6AHandler(void);
 extern void HallSensorHandler(void);
@@ -99,7 +99,7 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // UART0 Rx and Tx
     IntDefaultHandler,                      // UART1 Rx and Tx
     IntDefaultHandler,                      // SSI0 Rx and Tx
-    xI2C0Handler,                      // I2C0 Master and Slave
+    IntDefaultHandler,                      // I2C0 Master and Slave
     IntDefaultHandler,                      // PWM Fault
     IntDefaultHandler,                      // PWM Generator 0
     IntDefaultHandler,                      // PWM Generator 1
@@ -152,7 +152,7 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // UART5 Rx and Tx
     IntDefaultHandler,                      // UART6 Rx and Tx
     IntDefaultHandler,                      // UART7 Rx and Tx
-    IntDefaultHandler,                      // I2C2 Master and Slave
+    xI2C2Handler,                      // I2C2 Master and Slave
     IntDefaultHandler,                      // I2C3 Master and Slave
     Timer4IntHandler,                      // Timer 4 subtimer A
     IntDefaultHandler,                      // Timer 4 subtimer B

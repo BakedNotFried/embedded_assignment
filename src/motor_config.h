@@ -35,6 +35,8 @@ QueueHandle_t xCurrentQueueInternal;
 QueueHandle_t xCurrentQueueExternal;
 QueueHandle_t xPowerQueueInternal;
 QueueHandle_t xPowerQueueExternal;
+QueueHandle_t xOPT3001Queue;
+QueueHandle_t xBMI160Queue;
 
 typedef struct 
 {
@@ -51,6 +53,17 @@ typedef struct
 {
     uint32_t value; // Unsigned
 } PowerQueueData;
+
+// Structs for Sensor Data Publishing
+typedef struct 
+{
+    uint32_t ulfilteredLux;
+} OPT3001Message;
+
+typedef struct
+{
+    float ulfilteredAccel;
+} BMI160Message;
 
 #ifndef MOTOR_STATE_H
 #define MOTOR_STATE_H
