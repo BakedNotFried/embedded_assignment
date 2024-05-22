@@ -50,6 +50,7 @@ extern SemaphoreHandle_t xI2C0OPTSemaphore;
 extern SemaphoreHandle_t xI2C0BMISemaphore;
 // Mutex for I2C0
 extern SemaphoreHandle_t xI2C0Mutex;
+extern SemaphoreHandle_t xI2C2BusMutex;
 
 // enum for checking which sensor is using the I2C bus
 enum sensorType {NONE, OPT3001, BMI160};
@@ -58,6 +59,7 @@ volatile enum sensorType g_I2C_flag = NONE;
 // Function handle for task notification from Timer interrupt
 TaskHandle_t xOpt3001ReadHandle;
 TaskHandle_t xBMI160ReadHandle;
+TaskHandle_t xTaskToNotify = NULL;
 
 // Queues for Sensor Data Publishing
 extern QueueHandle_t xOPT3001Queue;
@@ -161,9 +163,11 @@ static void vOPT3001Read( void *pvParameters )
             // xLastWakeTime = xCurrentTime;
 
             //Read and convert OPT values
-            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-            success = sensorOpt3001Read(&rawData);
-            xSemaphoreGive(xI2C0Mutex);
+            if (xSemaphoreTake(xI2C0Mutex, portMAX_DELAY) == pdTRUE)
+            {
+                success = sensorOpt3001Read(&rawData);
+                xSemaphoreGive(xI2C0Mutex);
+            }
             if (success) {
                 sensorOpt3001Convert(rawData, &convertedLux);
                 int lux_int = (int)convertedLux;
@@ -249,13 +253,7 @@ static void xBMI160Read( void *pvParameters )
         // Wait for notification from Timer7B interrupt
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         {
-            // if ((print_idx % 50) == 0) {
-            //     // Print the values
-            // }
-            // Get Sensor Data for X,Y,Z
-            // if ((print_idx % 50) == 0) {
-            //     // Print the values
-            // }
+            // Read and convert BMI160 values
             if (xSemaphoreTake(xI2C0Mutex, 0) == pdTRUE) 
             {
                 readI2CBMI(0x69, 0x12, &x_lsb);
@@ -283,19 +281,6 @@ static void xBMI160Read( void *pvParameters )
             {
                 UARTprintf("I2C0 Mutex Timeout\n");
             }
-            // UARTprintf("BMI160 Accel X: %d\n", int_x);
-            // if ((print_idx % 50) == 0) {
-            //     // Print the values
-                
-            // }
-
-            // UARTprintf("BMI160 Accel Y: %d\n", int_y);
-            // if ((print_idx % 50) == 0) {
-            //     // Print the values
-                
-            // }
-
-            // UARTprintf("BMI160 Accel Z: %d\n", int_z);
             
             // abs value
             if (int_x < 0)
@@ -329,19 +314,16 @@ static void xBMI160Read( void *pvParameters )
             }
             int32_t filtered_accel = sum / 5;
             filtered_accel = (filtered_accel * 1000) / 16384;
+
             // Publish to Queue
             xBMI160Message.ulfilteredAccel = filtered_accel;
-            // if ((print_idx % 50) == 0) {
-            //     // Print the values
-            // }
             xQueueSend(xBMI160Queue, &xBMI160Message, 0);
 
+            // // // DEBUG
             // UBaseType_t uxHighWaterMark;
             // uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
             // // char pcWriteBuffer[512];
             // // vTaskGetRunTimeStats(pcWriteBuffer);
-
-            // // // DEBUG
             // // // read from error register
             // // // xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
             // // // readI2CBMI(0x69, 0x02, &error_reg);
@@ -494,7 +476,7 @@ static void prvConfigureHWTimer6A( void )
     TimerConfigure(TIMER6_BASE, TIMER_CFG_PERIODIC);
 
     /* Set the Timer 6A load value to run at 100 Hz. */
-    TimerLoadSet(TIMER6_BASE, TIMER_A, configCPU_CLOCK_HZ / 100);
+    TimerLoadSet(TIMER6_BASE, TIMER_A, configCPU_CLOCK_HZ / 500);
 
     /* Configure the Timer 6A interrupt for timeout. */
     TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
@@ -535,24 +517,42 @@ void xI2C2Handler( void )
     // I2CMasterIntClear(I2C0_BASE);
 
     // Check which sensor is using the I2C bus
+    // if (g_I2C_flag == OPT3001)
+    // {
+    //     // Give the semaphore to unblock the OPT3001 I2C read
+    //     BaseType_t xI2C0TaskWoken = pdFALSE;
+    //     xI2C0TaskWoken = pdFALSE;
+    //     xSemaphoreGiveFromISR( xI2C0OPTSemaphore, &xI2C0TaskWoken );
+    //     portYIELD_FROM_ISR( xI2C0TaskWoken );
+    // }
+    // else if (g_I2C_flag == BMI160)
+    // {
+        // // Give the semaphore to unblock
+        // BaseType_t xI2C0TaskWoken = pdFALSE;
+        // xI2C0TaskWoken = pdFALSE;
+        // xSemaphoreGiveFromISR( xI2C0BMISemaphore, &xI2C0TaskWoken );
+        // portYIELD_FROM_ISR( xI2C0TaskWoken );
+    // }
+
+    I2CMasterIntClear(I2C2_BASE);
+
     if (g_I2C_flag == OPT3001)
     {
-        // Give the semaphore to unblock the OPT3001 I2C read
-        BaseType_t xI2C0TaskWoken = pdFALSE;
-        xI2C0TaskWoken = pdFALSE;
-        xSemaphoreGiveFromISR( xI2C0OPTSemaphore, &xI2C0TaskWoken );
-        portYIELD_FROM_ISR( xI2C0TaskWoken );
+        // Notify the task that the I2C transaction is complete
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(xTaskToNotify, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     }
     else if (g_I2C_flag == BMI160)
     {
-        // Give the semaphore to unblock
-        BaseType_t xI2C0TaskWoken = pdFALSE;
-        xI2C0TaskWoken = pdFALSE;
-        xSemaphoreGiveFromISR( xI2C0BMISemaphore, &xI2C0TaskWoken );
-        portYIELD_FROM_ISR( xI2C0TaskWoken );
+        // Notify the task that the I2C transaction is complete
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(xTaskToNotify, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     }
 
-    I2CMasterIntClear(I2C2_BASE);
+
+
 }
 
 void xTimer6AHandler( void )

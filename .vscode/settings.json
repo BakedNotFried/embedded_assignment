@@ -19,7 +19,12 @@
         "rom_map.h": "c",
         "uart.h": "c",
         "rtos_hw_drivers.h": "c",
-        "pwm.h": "c"
+        "pwm.h": "c",
+        "hw_ints.h": "c",
+        "event_groups.h": "c",
+        "hw_sysctl.h": "c",
+        "debug.h": "c",
+        "motorlib.h": "c"
     },
     "cmake.configureOnOpen": true
 }
