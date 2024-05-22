@@ -173,10 +173,25 @@ SemaphoreHandle_t xOptSemaphore = NULL;
 
 /* The system clock frequency. */
 uint32_t g_ui32SysClock;
-tContext sContext;
-tRectangle sRect;
 
-int count = 0;
+
+
+
+
+//*****************************************************************************
+//
+// The DMA control structure table.
+//
+//*****************************************************************************
+#ifdef ewarm
+#pragma data_alignment=1024
+tDMAControlTable psDMAControlTable[64];
+#elif defined(ccs)
+#pragma DATA_ALIGN(psDMAControlTable, 1024)
+tDMAControlTable psDMAControlTable[64];
+#else
+tDMAControlTable psDMAControlTable[64] __attribute__ ((aligned(1024)));
+#endif
 
 
 
@@ -191,6 +206,15 @@ const uint32_t button_task_id = (1<<2);
 uint32_t g_ui32Panel = 0;
 bool MotorData = false;
 bool MotorPlot = false;
+bool ligthData = false;
+bool SensorData = false;
+bool SensorPlot = false;
+bool dayChange = 1;
+bool nightChange = 1;
+int count = 0;
+extern tCanvasWidget g_psPanels[];
+tContext sContext;
+tRectangle sRect;
 
 //uint32_t task_all_bits = (raw_task_id|avg_task_id);
 /*
@@ -223,10 +247,12 @@ void MotorOnOff( void );
 void MotorSpeed(void);
 void MotorLimitLow(void);
 void MotorLimitHigh(void);
+void MotorLimitAcc(void);
 void OnButtonPress(tWidget *psWidget);
 void OnSliderSpeed(tWidget *psWidget, int32_t i32Value);
 void OnSliderLimitLow(tWidget *psWidget, int32_t i32Value);
 void OnSliderLimitHigh(tWidget *psWidget, int32_t i32Value);
+void OnSliderLimitAcc(tWidget *psWidget, int32_t i32Value);
 
 
 //extern tCanvasWidget g_psPanels[];
@@ -296,8 +322,25 @@ RectangularButton(g_sNext, 0, 0, 0, &g_sKentec320x240x16_SSD2119, 270, 190,
                  ClrGray, ClrBlack, ClrSilver, ClrWhite, ClrWhite,
                  &g_sFontCm20, "75", 0, 0, OnSliderLimitHigh);
 
+    Slider(g_sSliderAcc, 0, 0, 0,
+                 &g_sKentec320x240x16_SSD2119, 180, 100, 110, 30, 0, 100, 100,
+                 (SL_STYLE_FILL | SL_STYLE_BACKG_FILL | SL_STYLE_OUTLINE |
+                  SL_STYLE_TEXT | SL_STYLE_BACKG_TEXT),
+                 ClrGray, ClrBlack, ClrSilver, ClrWhite, ClrWhite,
+                 &g_sFontCm20, "100", 0, 0, OnSliderLimitAcc);
+
+    // Slider(g_sSliderAcc, 0, 0, 0,
+    //              &g_sKentec320x240x16_SSD2119, 180, 100, 110, 30, 0, 100, 100,
+    //               (SL_STYLE_FILL | SL_STYLE_BACKG_FILL | SL_STYLE_OUTLINE |
+    //               SL_STYLE_TEXT | SL_STYLE_BACKG_TEXT),
+    //              ClrGray, ClrBlack, ClrSilver, ClrWhite, ClrWhite,
+    //              &g_sFontCm20, "100", 0, 0, OnSliderLimitAcc);
 
 
+    // CircularButton(g_sSliderAcc, 0, 0, 0, &g_sKentec320x240x16_SSD2119, 80, 120,
+    //               60,PB_STYLE_IMG | PB_STYLE_TEXT,
+    //               ClrRed, ClrBlack, ClrGray, ClrBlack,
+    //               &g_sFontCm20b, "OFF", 0, 0, 0, 0, OnSliderLimitAcc);
     // SliderStruct(g_psPanels + 7, g_psSliders + 1, 0,
     //              &g_sKentec320x240x16_SSD2119, 5, 115, 220, 30, 0, 100, 25,
     //              (SL_STYLE_FILL | SL_STYLE_BACKG_FILL | SL_STYLE_OUTLINE |
@@ -344,8 +387,7 @@ char *g_pcPanei32Names[] =
     "     Introduction     ",
     "     Motor control     ",
     "     Motor data     ",
-    "     Motor data     ",
-    "     Choosen sensor     ",
+    "     Sensor control     ",
     "     Sensor data     "
 };
 
@@ -406,7 +448,7 @@ OnButtonPress(tWidget *psWidget)
 void
 OnSliderSpeed(tWidget *psWidget, int32_t i32Value)
 {
-    static char pcCanvasText[5];
+    //static char pcCanvasText[5];
     static char pcSliderText[5];
 
 
@@ -426,7 +468,7 @@ int32_t limitHigh = 75;
 void
 OnSliderLimitLow(tWidget *psWidget, int32_t i32Value)
 {
-    static char pcCanvasText[5];
+    //static char pcCanvasText[5];
     static char pcSliderText[5];
     
 
@@ -448,7 +490,7 @@ OnSliderLimitLow(tWidget *psWidget, int32_t i32Value)
 void
 OnSliderLimitHigh(tWidget *psWidget, int32_t i32Value)
 {
-    static char pcCanvasText[5];
+    //static char pcCanvasText[5];
     static char pcSliderText[5];
     
 
@@ -467,6 +509,26 @@ OnSliderLimitHigh(tWidget *psWidget, int32_t i32Value)
     }
 }
 
+
+
+void
+OnSliderLimitAcc(tWidget *psWidget, int32_t i32Value)
+{
+    //static char pcCanvasText[5];
+    static char pcSliderText[5];
+    
+
+
+        // usprintf(pcCanvasText, "%3d%%", i32Value);
+        // CanvasTextSet(&g_sSliderValueCanvas, pcCanvasText);
+        // WidgetPaint((tWidget *)&g_sSliderValueCanvas);
+
+
+        usprintf(pcSliderText, "%3d", i32Value);
+        SliderTextSet(&g_sSliderAcc, pcSliderText);
+        WidgetPaint((tWidget *)&g_sSliderAcc);
+
+}
 
 
 void
@@ -519,20 +581,31 @@ OnPrevious(tWidget *psWidget)
             MotorLimitLow();
             MotorLimitHigh();
             MotorPlot = false;
+            //WidgetRemove((tWidget *)(&g_sSliderAcc));
             break;
         case 2:
             MotorData = true;
             MotorPlot = true;
+            count = 0;
             //WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sSliderSpeed);
+            WidgetRemove((tWidget *)(&g_sSliderAcc));
+            ligthData = false;
             break;
         case 3:
-            
+            MotorLimitAcc();
+            dayChange = 1;
+            nightChange = 1;
+            ligthData = true;
+            SensorPlot = false;
+            //WidgetRemove((tWidget *)(&g_sSliderAcc));
             break;
         case 4:
-            
+            SensorData = true;
+            SensorPlot = true; 
+            count = 0;
             break;
         case 5:
-            
+
             break;
     }
     //
@@ -639,14 +712,24 @@ OnNext(tWidget *psWidget)
             WidgetRemove((tWidget *)(&g_sSliderSpeed));
             WidgetRemove((tWidget *)(&g_sSliderLimitsLow));
             WidgetRemove((tWidget *)(&g_sSliderLimitsHigh));
+            //WidgetRemove((tWidget *)(&g_sSliderAcc));
             MotorData = true;
             MotorPlot = true;
+            count = 0;
             break;
         case 3:
             MotorPlot = false;
+            MotorLimitAcc();
+            ligthData = true;
+            dayChange = 1;
+            nightChange = 1;
             break;
         case 4:
-            
+            ligthData = false;
+            WidgetRemove((tWidget *)(&g_sSliderAcc));
+            SensorData = true;
+            SensorPlot = true;
+            count = 0;
             break;
         case 5:
             
@@ -739,11 +822,11 @@ void MotorSpeed(void)
 
         //WidgetRemove((tWidget *)(&g_sMotorOff));
         WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sSliderSpeed);
-        PushButtonImageOn(&g_sSliderSpeed);
-        PushButtonFillOn(&g_sSliderSpeed);
-        PushButtonTextOn(&g_sSliderSpeed);
-        PushButtonTextOn(&g_sSliderSpeed);
-        PushButtonFillOn(&g_sSliderSpeed);
+        // PushButtonImageOn(&g_sSliderSpeed);
+        // PushButtonFillOn(&g_sSliderSpeed);
+        // PushButtonTextOn(&g_sSliderSpeed);
+        // PushButtonTextOn(&g_sSliderSpeed);
+        // PushButtonFillOn(&g_sSliderSpeed);
         WidgetPaint((tWidget *)&g_sSliderSpeed);
         GrContextFontSet(&sContext, &g_sFontCm20);
         GrContextForegroundSet(&sContext, ClrSilver);
@@ -755,11 +838,11 @@ void MotorLimitLow(void)
 
         //WidgetRemove((tWidget *)(&g_sMotorOff));
         WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sSliderLimitsLow);
-        PushButtonImageOn(&g_sSliderLimitsLow);
-        PushButtonFillOn(&g_sSliderLimitsLow);
-        PushButtonTextOn(&g_sSliderLimitsLow);
-        PushButtonTextOn(&g_sSliderLimitsLow);
-        PushButtonFillOn(&g_sSliderLimitsLow);
+        // PushButtonImageOn(&g_sSliderLimitsLow);
+        // PushButtonFillOn(&g_sSliderLimitsLow);
+        // PushButtonTextOn(&g_sSliderLimitsLow);
+        // PushButtonTextOn(&g_sSliderLimitsLow);
+        // PushButtonFillOn(&g_sSliderLimitsLow);
         WidgetPaint((tWidget *)&g_sSliderLimitsLow);
         GrContextFontSet(&sContext, &g_sFontCm20);
         GrContextForegroundSet(&sContext, ClrSilver);
@@ -770,13 +853,13 @@ void MotorLimitLow(void)
 void MotorLimitHigh(void)
 {
 
-        //WidgetRemove((tWidget *)(&g_sMotorOff));
+        // //WidgetRemove((tWidget *)(&g_sMotorOff));
         WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sSliderLimitsHigh);
-        PushButtonImageOn(&g_sSliderLimitsHigh);
-        PushButtonFillOn(&g_sSliderLimitsHigh);
-        PushButtonTextOn(&g_sSliderLimitsHigh);
-        PushButtonTextOn(&g_sSliderLimitsHigh);
-        PushButtonFillOn(&g_sSliderLimitsHigh);
+        // PushButtonImageOn(&g_sSliderLimitsHigh);
+        // PushButtonFillOn(&g_sSliderLimitsHigh);
+        // PushButtonTextOn(&g_sSliderLimitsHigh);
+        // PushButtonTextOn(&g_sSliderLimitsHigh);
+        // PushButtonFillOn(&g_sSliderLimitsHigh);
         WidgetPaint((tWidget *)&g_sSliderLimitsHigh);
         GrContextFontSet(&sContext, &g_sFontCm20);
         GrContextForegroundSet(&sContext, ClrSilver);
@@ -784,6 +867,22 @@ void MotorLimitHigh(void)
     
 }
 
+
+void MotorLimitAcc(void)
+{
+        //WidgetRemove((tWidget *)(&g_sMotorOff));
+        WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sSliderAcc);
+        // PushButtonImageOn(g_sSliderAcc);
+        // PushButtonFillOn(g_sSliderAcc);
+        // PushButtonTextOn(g_sSliderAcc);
+        // PushButtonTextOn(g_sSliderAcc);
+        // PushButtonFillOn(g_sSliderAcc);
+        WidgetPaint((tWidget *)&g_sSliderAcc);
+        GrContextFontSet(&sContext, &g_sFontCm20);
+        GrContextForegroundSet(&sContext, ClrSilver);
+        GrStringDraw(&sContext, "Acc Limit:", -1, 180, 80, 0);
+    
+}
 
 /*
  * Called by main() to create the various queue tasks.
@@ -812,14 +911,31 @@ void vQueueTask( void )
     {
         /* The event group was created. */
     }
+    FPUEnable();
+    FPULazyStackingEnable();
+
+        //
+    // Configure and enable uDMA
+    //
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UDMA);
+    SysCtlDelay(10);
+    uDMAControlBaseSet(&psDMAControlTable[0]);
+    uDMAEnable();
 
 
     TouchScreenInit(g_ui32SysClock);
     TouchScreenCallbackSet(WidgetPointerMessage);
-    //WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sSwitch);
+
     WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sPrevious);
     WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sTitle);
     WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sNext);
+    
+    // WidgetRemove((tWidget *)(&g_sMotorOn));
+    // WidgetRemove((tWidget *)(&g_sMotorOff));
+    // WidgetRemove((tWidget *)(&g_sSliderSpeed));
+    // WidgetRemove((tWidget *)(&g_sSliderLimitsLow));
+    // WidgetRemove((tWidget *)(&g_sSliderLimitsHigh));
+    // WidgetRemove((tWidget *)(&g_sSliderAcc));
 
     //g_ui32Panel = 0;
     //WidgetAdd(WIDGET_ROOT, (tWidget *)g_psPanels);
@@ -921,9 +1037,9 @@ void vQueueTask( void )
 
     xTaskCreate(prvDisplay,
                 "Display",
-                configMINIMAL_STACK_SIZE,
+                configMINIMAL_STACK_SIZE*3,
                 NULL,
-                mainQUEUE_RECEIVE_TASK_PRIORITY,
+                mainQUEUE_RECEIVE_TASK_PRIORITY+1,
                 NULL );
 
 }
@@ -1017,7 +1133,7 @@ void movingAverageFilter(float *newReading, float *average)
 
 
 
-void plot(int speed, int power){
+void plotMotor(int speed, int power){
 
 
         if(MotorData)
@@ -1098,6 +1214,216 @@ void plot(int speed, int power){
         }
 }
 
+
+
+void plotSensor(int lux, int acc){
+
+        if(SensorData)
+        {
+            
+            GrContextFontSet(&sContext, &g_sFontCm20);
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrStringDraw(&sContext, "Light (lux):", -1, 35, 25, 0);
+
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrStringDraw(&sContext, "Acc (whatever):", -1, 180, 25, 0);
+            SensorData = false;
+            //Plot for speed
+            sRect.i16XMin = 10;
+            sRect.i16YMin = 50;
+            sRect.i16XMax = 11;
+            sRect.i16YMax = 180;
+            GrContextForegroundSet(&sContext, ClrGreen);
+            GrRectFill(&sContext, &sRect);
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrRectDraw(&sContext, &sRect);
+            
+            sRect.i16XMin = 10;
+            sRect.i16YMin = 180;
+            sRect.i16XMax = 150;
+            sRect.i16YMax = 181;
+            GrContextForegroundSet(&sContext, ClrGreen);
+            GrRectFill(&sContext, &sRect);    
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrRectDraw(&sContext, &sRect);
+
+            //PLot for power
+            sRect.i16XMin = 160;
+            sRect.i16YMin = 50;
+            sRect.i16XMax = 161;
+            sRect.i16YMax = 180;
+            GrContextForegroundSet(&sContext, ClrGreen);
+            GrRectFill(&sContext, &sRect);
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrRectDraw(&sContext, &sRect);
+            
+            sRect.i16XMin = 160;
+            sRect.i16YMin = 180;
+            sRect.i16XMax = 299;
+            sRect.i16YMax = 181;
+            GrContextForegroundSet(&sContext, ClrGreen);
+            GrRectFill(&sContext, &sRect);    
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrRectDraw(&sContext, &sRect);
+        }
+
+        lux = 0 + (((lux - 0)*(200 - 0))/(2000-0));
+        acc = 0 + (((acc - 0)*(200 - 0))/(2000-0));
+        //UARTprintf("Data: %5d\n", data);
+        if(lux <= 200)
+        {
+            
+            GrCircleDraw(&sContext, 15 + count,180-lux,1);
+            GrCircleDraw(&sContext, 165 + count,180-acc,1);
+            count = count + 2;
+            if((count+15) >= 150)
+            {
+                count = 0;
+                sRect.i16XMin = 12;
+                sRect.i16YMin = 50;
+                sRect.i16XMax = 150;
+                sRect.i16YMax = 180;
+                GrContextForegroundSet(&sContext, ClrBlack);
+                GrRectFill(&sContext, &sRect);  
+
+                sRect.i16XMin = 163;
+                sRect.i16YMin = 50;
+                sRect.i16XMax = 300;
+                sRect.i16YMax = 180;
+                GrContextForegroundSet(&sContext, ClrBlack);
+                GrRectFill(&sContext, &sRect);  
+
+            }
+        }
+}
+
+
+void plotNight(void){
+    sRect.i16XMin = 0;
+    sRect.i16YMin = 24;
+    sRect.i16XMax = 160;
+    sRect.i16YMax = 190;
+    GrContextForegroundSet(&sContext, ClrBlack);
+    GrRectFill(&sContext, &sRect);
+
+
+    GrContextForegroundSet(&sContext, ClrWhite);
+    GrCircleFill(&sContext, 80,107,60);
+
+    GrContextForegroundSet(&sContext, ClrBlack);
+    GrCircleFill(&sContext, 100,107,60);
+
+
+}
+
+void plotDay(void){
+    sRect.i16XMin = 0;
+    sRect.i16YMin = 24;
+    sRect.i16XMax = 160;
+    sRect.i16YMax = 190;
+    GrContextForegroundSet(&sContext, ClrBlack);
+    GrRectFill(&sContext, &sRect);
+
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrCircleFill(&sContext, 80,107,60);
+
+
+
+
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 80, 30 );
+
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 80, 184 );
+
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 157, 107 );
+
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 3, 107 );
+
+    //Set 1
+    //K
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 100, 181 );
+    //L
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 119, 173 );
+    //M
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 160, 119 );
+    //N
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 153, 133 );
+    //O
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 144, 149 );
+    //P
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 134, 162 );
+
+    //Set 2
+    //K
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 65, 32 );
+    //L
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 46, 38 );
+    //M
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 4, 93 );
+    //N
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 9, 77 );
+    //O
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 18, 61 );
+    //P
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 30, 48 );
+
+    //Set 3
+    //K
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 4, 121 );
+    //L
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 10, 139 );
+    //M
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 63, 182 );
+    //N
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 46, 176 );
+    //O
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 31, 166 );
+    //P
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 19, 154 );
+
+    //Set 4
+    //K
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 155, 91 );
+    //L
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 151, 76 );
+    //M
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 96, 32 );
+    //N
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 116, 39 );
+    //O
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 132, 50 );
+    //P
+    GrContextForegroundSet(&sContext, ClrYellow);
+    GrLineDraw(&sContext, 80, 107, 143, 62 );
+}
+
+
 static void prvDisplay( void *pvParameters )
 {       
     sRect.i16XMin = 0;
@@ -1114,6 +1440,7 @@ static void prvDisplay( void *pvParameters )
     GrStringDrawCentered(&sContext, str, -1,
                         GrContextDpyWidthGet(&sContext) / 2, 8, 0);
     OnIntroPaint();
+
     bool clockSec = 1;
     struct AData xReadSpeed;
     struct AData xReadPower;
@@ -1178,7 +1505,37 @@ static void prvDisplay( void *pvParameters )
         {
             if((xQueueReceive( xOptAverageQueue, &( xReadSpeed ), ( TickType_t ) 10 ) == pdPASS) || (xQueueReceive( xOptDataQueue, &( xReadPower ), ( TickType_t ) 10 ) == pdPASS))
             {
-                plot(xReadSpeed.ulSamples, xReadPower.ulSamples);
+                plotMotor(xReadSpeed.ulSamples, xReadPower.ulSamples);
+            }
+        }
+
+        if(SensorPlot)
+        {
+            if((xQueueReceive( xOptAverageQueue, &( xReadSpeed ), ( TickType_t ) 10 ) == pdPASS) || (xQueueReceive( xOptDataQueue, &( xReadPower ), ( TickType_t ) 10 ) == pdPASS))
+            {
+                plotSensor(xReadSpeed.ulSamples, xReadPower.ulSamples);
+            }
+        }
+
+        if(ligthData)
+        {
+            //int oldVal = 0;
+            if((xQueueReceive( xOptAverageQueue, &( xReadSpeed ), ( TickType_t ) 10 ) == pdPASS))
+            {
+
+                if(xReadSpeed.ulSamples <=  5 && dayChange)
+                {
+                    dayChange = 0;
+                    nightChange = 1;
+                    plotNight();
+                }
+                if(xReadSpeed.ulSamples >  5 && nightChange)
+                {
+                    nightChange = 0;
+                    dayChange = 1;
+                    plotDay();
+                }
+
             }
         }
       
@@ -1186,248 +1543,6 @@ static void prvDisplay( void *pvParameters )
 }
 
 
-
-
-// static void prvQueueSendTask1( void *pvParameters )
-// {
-// struct AMessage xMessage, *pxPointerToxMessage;
-// xMessage.ulMessageID = TASK1_ID;
-
-//     for (;;)
-//     {
-//        /* Pull the current time stamp. */
-//         xMessage.ulTimeStamp = xTaskGetTickCount();
-
-//        /* Send the entire structure by value to the queue. */
-//        xQueueSend( /* The handle of the queue. */
-//                    xStructQueue,
-//                    /* The address of the xMessage variable.
-//                     * sizeof( struct AMessage ) bytes are copied from here into
-//                     * the queue. */
-//                    ( void * ) &xMessage,
-//                    /* Block time of 0 says don't block if the queue is already
-//                     * full.  Check the value returned by xQueueSend() to know
-//                     * if the message was sent to the queue successfully. */
-//                    ( TickType_t ) 0 );
-
-//        /* Store the address of the xMessage variable in a pointer variable. */
-//        pxPointerToxMessage = &xMessage;
-
-//        /* Update the time stamp. */
-//        xMessage.ulTimeStamp = xTaskGetTickCount();
-
-//        /* Send the address (by reference) of xMessage to the queue. */
-//        xQueueSend( /* The handle of the queue. */
-//                    xPointerQueue,
-//                    /* The address of the variable that holds the address of
-//                     * xMessage.  sizeof( &xMessage ) bytes are copied from here
-//                     * into the queue.  As the variable holds the address of
-//                     * xMessage it is the address of xMessage that is copied
-//                     * into the queue. */
-//                    ( void * ) &pxPointerToxMessage,
-//                    ( TickType_t ) 0 );
-//     }
-// }
-// /*-----------------------------------------------------------*/
-
-// static void prvQueueSendTask2( void *pvParameters )
-// {
-// struct AMessage xMessage, *pxPointerToxMessage;
-// xMessage.ulMessageID = TASK2_ID;
-
-//     for (;;)
-//     {
-//        /* Pull the current time stamp. */
-//         xMessage.ulTimeStamp = xTaskGetTickCount();
-
-//        /* Send the entire structure by value to the queue. */
-//        xQueueSend( /* The handle of the queue. */
-//                    xStructQueue,
-//                    /* The address of the xMessage variable.
-//                     * sizeof( struct AMessage ) bytes are copied from here into
-//                     * the queue. */
-//                    ( void * ) &xMessage,
-//                    /* Block time of 0 says don't block if the queue is already
-//                     * full.  Check the value returned by xQueueSend() to know
-//                     * if the message was sent to the queue successfully. */
-//                    ( TickType_t ) 0 );
-
-//        /* Create a 5ms delay. */
-//        vTaskDelay( pdMS_TO_TICKS( 5 ));
-
-//        /* Update the time stamp. */
-//        xMessage.ulTimeStamp = xTaskGetTickCount();
-
-//        /* Store the address of the xMessage variable in a pointer variable. */
-//        pxPointerToxMessage = &xMessage;
-
-//        /* Send the address (by reference) of xMessage to the queue. */
-//        xQueueSend( /* The handle of the queue. */
-//                    xPointerQueue,
-//                    /* The address of the variable that holds the address of
-//                     * xMessage.  sizeof( &xMessage ) bytes are copied from here
-//                     * into the queue.  As the variable holds the address of
-//                     * xMessage it is the address of xMessage that is copied
-//                     * into the queue. */
-//                    ( void * ) &pxPointerToxMessage,
-//                    ( TickType_t ) 0 );
-
-//        /* Create a 5ms delay. */
-//        vTaskDelay( pdMS_TO_TICKS( 5 ));
-//     }
-// }
-// /*-----------------------------------------------------------*/
-
-// static void prvQueueSendTask3( void *pvParameters )
-// {
-// struct AMessage xMessage, *pxPointerToxMessage;
-// xMessage.ulMessageID = TASK3_ID;
-
-//     for (;;)
-//     {
-//        /* Pull the current time stamp. */
-//         xMessage.ulTimeStamp = xTaskGetTickCount();
-
-//        /* Send the entire structure by value to the queue. */
-//        xQueueSend( /* The handle of the queue. */
-//                    xStructQueue,
-//                    /* The address of the xMessage variable.
-//                     * sizeof( struct AMessage ) bytes are copied from here into
-//                     * the queue. */
-//                    ( void * ) &xMessage,
-//                    /* Block time of 0 says don't block if the queue is already
-//                     * full.  Check the value returned by xQueueSend() to know
-//                     * if the message was sent to the queue successfully. */
-//                     ( TickType_t ) 0 );
-
-//        /* Create a 10ms delay. */
-//        vTaskDelay( pdMS_TO_TICKS( 10 ));
-
-//        /* Update the time stamp. */
-//        xMessage.ulTimeStamp = xTaskGetTickCount();
-
-//        /* Store the address of the xMessage variable in a pointer variable. */
-//        pxPointerToxMessage = &xMessage;
-
-//        /* Send the address (by reference) of xMessage to the queue. */
-//        xQueueSend( /* The handle of the queue. */
-//                    xPointerQueue,
-//                    /* The address of the variable that holds the address of
-//                     * xMessage.  sizeof( &xMessage ) bytes are copied from here
-//                     * into the queue.  As the variable holds the address of
-//                     * xMessage it is the address of xMessage that is copied
-//                     * into the queue. */
-//                    ( void * ) &pxPointerToxMessage,
-//                    ( TickType_t ) 0 );
-
-//        /* Create a 10ms delay. */
-//        vTaskDelay( pdMS_TO_TICKS( 10 ));
-//     }
-// }
-// /*-----------------------------------------------------------*/
-
-// static void prvQueueSendTask4( void *pvParameters )
-// {
-// struct AMessage xMessage, *pxPointerToxMessage;
-// xMessage.ulMessageID = TASK4_ID;
-
-//     for (;;)
-//     {
-//        /* Pull the current time stamp. */
-//         xMessage.ulTimeStamp = xTaskGetTickCount();
-
-//        /* Send the entire structure by value to the queue. */
-//        xQueueSend( /* The handle of the queue. */
-//                    xStructQueue,
-//                    /* The address of the xMessage variable.
-//                     * sizeof( struct AMessage ) bytes are copied from here into
-//                     * the queue. */
-//                    ( void * ) &xMessage,
-//                    /* Block time of 0 says don't block if the queue is already
-//                     * full.  Check the value returned by xQueueSend() to know
-//                     * if the message was sent to the queue successfully. */
-//                    ( TickType_t ) 0 );
-
-//        /* Create a 15ms delay. */
-//        vTaskDelay( pdMS_TO_TICKS( 15 ));
-
-//        /* Update the time stamp. */
-//        xMessage.ulTimeStamp = xTaskGetTickCount();
-
-//        /* Store the address of the xMessage variable in a pointer variable. */
-//        pxPointerToxMessage = &xMessage;
-
-//        /* Send the address (by reference) of xMessage to the queue. */
-//        xQueueSend( /* The handle of the queue. */
-//                    xPointerQueue,
-//                    /* The address of the variable that holds the address of
-//                     * xMessage.  sizeof( &xMessage ) bytes are copied from here
-//                     * into the queue.  As the variable holds the address of
-//                     * xMessage it is the address of xMessage that is copied
-//                     * into the queue. */
-//                    ( void * ) &pxPointerToxMessage,
-//                    ( TickType_t ) 0 );
-
-//        /* Create a 15ms delay. */
-//        vTaskDelay( pdMS_TO_TICKS( 15 ));
-//     }
-// }
-// /*-----------------------------------------------------------*/
-
-// static void prvQueueReceiveTask1( void *pvParameters )
-// {
-// struct AMessage xRxedStructure;
-
-//     for (;;)
-//     {
-//         if( xStructQueue != NULL )
-//         {
-//             /* Receive a message from the created queue to hold complex struct
-//              * AMessage structure.  Block for 10 ticks if a message is not
-//              * immediately available.  The value is read into a struct AMessage
-//              * variable, so after calling xQueueReceive() xRxedStructure will
-//              * hold a copy of xMessage. */
-//             if( xQueueReceive( xStructQueue,
-//                                &( xRxedStructure ),
-//                                ( TickType_t ) 10 ) == pdPASS )
-//             {
-//                 /* xRxedStructure now contains a copy of xMessage. */
-//                 UARTprintf("Queue 1 receives from Task %d at time stamp = %d\n",
-//                            xRxedStructure.ulMessageID,
-//                            xRxedStructure.ulTimeStamp);
-//             }
-//         }
-//     }
-// }
-// /*-----------------------------------------------------------*/
-
-// static void prvQueueReceiveTask2( void *pvParameters )
-// {
-// struct AMessage *pxRxedPointer;
-
-//     for (;;)
-//     {
-//         if( xPointerQueue != NULL )
-//         {
-//             /* Receive a message from the created queue to hold pointers.
-//              * Block for 10 ticks if a message is not immediately available.
-//              * The value is read into a pointer variable, and as the value
-//              * received is the address of the xMessage variable, after this
-//              * call pxRxedPointer will point to xMessage. */
-//             if( xQueueReceive( xPointerQueue,
-//                                &( pxRxedPointer ),
-//                                ( TickType_t ) 10 ) == pdPASS )
-//             {
-//                 /* *pxRxedPointer now points to xMessage. */
-//                 UARTprintf("Queue 2 receives from Task %d at time stamp = %d\n",
-//                            pxRxedPointer->ulMessageID,
-//                            pxRxedPointer->ulTimeStamp);
-
-//             }
-//         }
-//     }
-// }
-/*-----------------------------------------------------------*/
 
 void vApplicationTickHook( void )
 {
