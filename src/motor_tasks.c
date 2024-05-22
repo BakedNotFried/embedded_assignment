@@ -74,12 +74,6 @@ extern RPMQueueData xRPMvalue;
 extern CurrentQueueData xCurrentvalue;
 extern PowerQueueData xPowervalue;
 
-// Debug for Light and Accel
-extern QueueHandle_t xOPT3001Queue;
-extern QueueHandle_t xBMI160Queue;
-extern OPT3001Message xOPT3001Message;
-extern BMI160Message xBMI160Message;
-
 //globals
 volatile uint32_t pulseCount = 0;
 volatile bool timerStarted = false;
@@ -121,6 +115,7 @@ void vCreateMotorTask( void )
                  tskIDLE_PRIORITY + 1,
                  &vRPMReadHandle );
     
+    // This is just for testing reads on the queues
     xTaskCreate( vQueueReadTest,
                  "Queue Read Test",
                  configMINIMAL_STACK_SIZE,
@@ -412,26 +407,9 @@ void vQueueReadTest( void *pvParameters )
     RPMQueueData xRPMvalueRecv;
     CurrentQueueData xCurrentvalueRecv;
     PowerQueueData xPowervalueRecv;
-    OPT3001Message xOPT3001MessageRecv;
-    BMI160Message xBMI160MessageRecv;
-    int16_t accel = 0;
-
     int print_idx = 0;
     for( ;; )
     {
-        // Read from accelerometer queue BMI
-        if ( (xQueueReceive(xBMI160Queue, &xBMI160MessageRecv, 0) == pdPASS) || (xQueueReceive(xOPT3001Queue, &xOPT3001MessageRecv, 0) == pdPASS) )
-        {
-            // Scale the accelerometer value and cast to int
-            if ((print_idx % 50) == 0) {
-                accel = (int16_t)(xBMI160MessageRecv.ulfilteredAccel * 1000);
-                // Print the value
-                UARTprintf("\n");
-                UARTprintf("Accel: %d\n", accel);
-                UARTprintf("Lux: %u\n", xOPT3001MessageRecv.ulfilteredLux);
-            }
-        }
-
         // Read the RPM value from the queue
         if ( (xQueueReceive(xRPMQueueExternal, &xRPMvalueRecv, pdMS_TO_TICKS( 100 )) == pdPASS) && (xQueueReceive(xCurrentQueueExternal, &xCurrentvalueRecv, pdMS_TO_TICKS( 100 )) == pdPASS) && (xQueueReceive(xPowerQueueExternal, &xPowervalueRecv, pdMS_TO_TICKS( 100 )) == pdPASS) )
         {

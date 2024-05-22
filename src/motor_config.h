@@ -62,7 +62,7 @@ typedef struct
 
 typedef struct
 {
-    float ulfilteredAccel;
+    int32_t ulfilteredAccel;
 } BMI160Message;
 
 #ifndef MOTOR_STATE_H

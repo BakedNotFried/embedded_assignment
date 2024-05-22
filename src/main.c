@@ -78,25 +78,25 @@ int main( void )
     prvConfigureUART();
     UARTprintf("Input Configuration");  // This is needed to make UART work. Don't Delete (idk wtf is going on here)
 
-    /*                   Sensor Main Setup (Cal)               */
-    // Semaphore for I2C non-blocking read/write
-    xI2C0OPTSemaphore = xSemaphoreCreateBinary();
-    xI2C0BMISemaphore = xSemaphoreCreateBinary();
-    // Mutex for I2C
-    xI2C0Mutex = xSemaphoreCreateMutex();
-
-    if ( (xI2C0OPTSemaphore != NULL) && (xI2C0BMISemaphore != NULL) && (xI2C0Mutex != NULL) )
-    {
-        // Create the tasks associated with sensor reading
-        vSensorTaskSetup();
-    }
-
-    UARTprintf("Input Configuration");  // This is needed to make UART work. Don't Delete (idk wtf is going on here)
-    
     /*-----------------------------------------------------------*/
     /*                   Motor Main Setup (Jim)                  */
     // Do Motor Stuff
     vCreateMotorTask();
+
+    UARTprintf("Input Configuration");  // This is needed to make UART work. Don't Delete (idk wtf is going on here)
+
+    // /*                   Sensor Main Setup (Cal)               */
+    // // Semaphore for I2C non-blocking read/write
+    // xI2C0OPTSemaphore = xSemaphoreCreateBinary();
+    // xI2C0BMISemaphore = xSemaphoreCreateBinary();
+    // // Mutex for I2C
+    // xI2C0Mutex = xSemaphoreCreateMutex();
+
+    // if ( (xI2C0OPTSemaphore != NULL) && (xI2C0BMISemaphore != NULL) && (xI2C0Mutex != NULL) )
+    // {
+    //     // Create the tasks associated with sensor reading
+    //     vSensorTaskSetup();
+    // }
 
 
     /*-----------------------------------------------------------*/
