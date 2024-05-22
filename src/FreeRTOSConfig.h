@@ -64,6 +64,11 @@
 #define configUSE_MUTEXES                   1
 #define configUSE_RECURSIVE_MUTEXES         1
 #define configCHECK_FOR_STACK_OVERFLOW      2
+// set config for runtime stats
+// #define configUSE_STATS_FORMATTING_FUNCTIONS 1
+// #define configGENERATE_RUN_TIME_STATS 1
+// #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() // Define as appropriate for your hardware
+// #define portGET_RUN_TIME_COUNTER_VALUE() // Define as appropriate for your hardware
 
 //#define configMAX_PRIORITIES                ( ( unsigned portBASE_TYPE ) 16 )
 #define configMAX_PRIORITIES ( 16 )

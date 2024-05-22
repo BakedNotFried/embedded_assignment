@@ -98,20 +98,20 @@ void vSensorTaskSetup( void )
         UARTprintf("Error creating Sensor Queues\n");
     }
 
-    // Create the task to read the optical sensor
-    xTaskCreate( vOPT3001Read,
-                 "Opt 3001 Read/Pub Task",
-                 configMINIMAL_STACK_SIZE,
-                 NULL,
-                 tskIDLE_PRIORITY + 1,
-                 &xOpt3001ReadHandle);
+    // // Create the task to read the optical sensor
+    // xTaskCreate( vOPT3001Read,
+    //              "Opt 3001 Read/Pub Task",
+    //              configMINIMAL_STACK_SIZE,
+    //              NULL,
+    //              tskIDLE_PRIORITY + 1,
+    //              &xOpt3001ReadHandle);
     
     // Create the task to read the IMU sensor
     xTaskCreate( xBMI160Read,
                  "IMU Read/Pub Task",
-                 configMINIMAL_STACK_SIZE,
+                 configMINIMAL_STACK_SIZE + 200,
                  NULL,
-                 tskIDLE_PRIORITY + 2,
+                 tskIDLE_PRIORITY + 1,
                  &xBMI160ReadHandle);
     
     // // This is just for testing reads on the queues
@@ -182,7 +182,7 @@ static void vOPT3001Read( void *pvParameters )
                 xQueueSend(xOPT3001Queue, &xOPT3001Message, 0);
 
                 // DEBUG
-                // UARTprintf("Filtered Lux: %5d\n", filtered_lux);
+                UARTprintf("Filtered Lux: %5d\n", filtered_lux);
                 // Get the sensor configuration
                 // uint16_t config;
                 // readI2C(0x47, 0x7F, (uint8_t *)&config);
@@ -243,30 +243,60 @@ static void xBMI160Read( void *pvParameters )
         // TickType_t xElapsedTime = (xCurrentTime - xLastWakeTime) * portTICK_PERIOD_MS;
         // UARTprintf("Time Passed: %d ms\n", xElapsedTime);
         // xLastWakeTime = xCurrentTime;
-
+        // if ((print_idx % 50) == 0) {
+        //     // Print the values
+        // }
         // Wait for notification from Timer7B interrupt
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         {
+            // if ((print_idx % 50) == 0) {
+            //     // Print the values
+            // }
             // Get Sensor Data for X,Y,Z
-            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-            readI2CBMI(0x69, 0x12, &x_lsb);
-            readI2CBMI(0x69, 0x13, &x_msb);
-            xSemaphoreGive(xI2C0Mutex);
-            int_x = (int16_t)((x_msb << 8) | x_lsb);
-            // UARTprintf("BMI160 Accel X: %d\n", int_x);
-            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-            readI2CBMI(0x69, 0x14, &y_lsb);
-            readI2CBMI(0x69, 0x15, &y_msb);
-            xSemaphoreGive(xI2C0Mutex);
-            int_y = (int16_t)((y_msb << 8) | y_lsb);
-            // UARTprintf("BMI160 Accel Y: %d\n", int_y);
-            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-            readI2CBMI(0x69, 0x16, &z_lsb);
-            readI2CBMI(0x69, 0x17, &z_msb);
-            xSemaphoreGive(xI2C0Mutex);
-            int_z = (int16_t)((z_msb << 8) | z_lsb);
-            // UARTprintf("BMI160 Accel Z: %d\n", int_z);
+            // if ((print_idx % 50) == 0) {
+            //     // Print the values
+            // }
+            if (xSemaphoreTake(xI2C0Mutex, 0) == pdTRUE) 
+            {
+                readI2CBMI(0x69, 0x12, &x_lsb);
+                readI2CBMI(0x69, 0x13, &x_msb);
+                xSemaphoreGive(xI2C0Mutex);
+                int_x = (int16_t)((x_msb << 8) | x_lsb);
 
+                if (xSemaphoreTake(xI2C0Mutex, 0) == pdTRUE) 
+                {
+                    readI2CBMI(0x69, 0x14, &y_lsb);
+                    readI2CBMI(0x69, 0x15, &y_msb);
+                    xSemaphoreGive(xI2C0Mutex);
+                    int_y = (int16_t)((y_msb << 8) | y_lsb);
+
+                    if (xSemaphoreTake(xI2C0Mutex, 0) == pdTRUE)
+                    {
+                        readI2CBMI(0x69, 0x16, &z_lsb);
+                        readI2CBMI(0x69, 0x17, &z_msb);
+                        xSemaphoreGive(xI2C0Mutex);
+                        int_z = (int16_t)((z_msb << 8) | z_lsb);
+                    }
+                }
+            }
+            else
+            {
+                UARTprintf("I2C0 Mutex Timeout\n");
+            }
+            // UARTprintf("BMI160 Accel X: %d\n", int_x);
+            // if ((print_idx % 50) == 0) {
+            //     // Print the values
+                
+            // }
+
+            // UARTprintf("BMI160 Accel Y: %d\n", int_y);
+            // if ((print_idx % 50) == 0) {
+            //     // Print the values
+                
+            // }
+
+            // UARTprintf("BMI160 Accel Z: %d\n", int_z);
+            
             // abs value
             if (int_x < 0)
             {
@@ -301,53 +331,67 @@ static void xBMI160Read( void *pvParameters )
             filtered_accel = (filtered_accel * 1000) / 16384;
             // Publish to Queue
             xBMI160Message.ulfilteredAccel = filtered_accel;
-            xQueueSend(xBMI160Queue, &xBMI160Message, 0);
-
-            // DEBUG
-            // read from error register
-            // xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-            // readI2CBMI(0x69, 0x02, &error_reg);
-            // xSemaphoreGive(xI2C0Mutex);
-            // UARTprintf("BMI160 Error Reg: 0x%02x\n", error_reg);
             // if ((print_idx % 50) == 0) {
             //     // Print the values
-            //     // UARTprintf("BMI160 Jerk: %d\n", filtered_accel);
-            //     UARTprintf("BMI160 Accel: %d\n", int_jerk);
-            //     // print error reg
             // }
-            // print_idx += 1;
+            xQueueSend(xBMI160Queue, &xBMI160Message, 0);
+
+            // UBaseType_t uxHighWaterMark;
+            // uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+            // // char pcWriteBuffer[512];
+            // // vTaskGetRunTimeStats(pcWriteBuffer);
+
+            // // // DEBUG
+            // // // read from error register
+            // // // xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
+            // // // readI2CBMI(0x69, 0x02, &error_reg);
+            // // // xSemaphoreGive(xI2C0Mutex);
+            // // // UARTprintf("BMI160 Error Reg: 0x%02x\n", error_reg);
+            if ((print_idx % 50) == 0) {
+                // Print the values
+                UARTprintf("Jerk: %d\n", filtered_accel);
+                // UARTprintf("Accel: %d\n", int_accel);
+                // UARTprintf("\nX: %d\n", int_x);
+                // UARTprintf("Y: %d\n", int_y);
+                // UARTprintf("Z: %d\n", int_z);
+                // UARTprintf("BMI160 Accel: %d\n", int_jerk);
+                // UARTprintf("WaterMark: %u\n", uxHighWaterMark);
+                // UARTprintf("Run Time Stats: %s\n", pcWriteBuffer);
+                // print error reg
+            }
+            print_idx += 1;
         }
     }
 }
 
 /*-----------------------------------------------------------*/
-// Queue Read Test Task
-void vQueueReadTest( void *pvParameters )
-{
-    OPT3001Message xOPT3001MessageRecv;
-    BMI160Message xBMI160MessageRecv;
-    int print_idx = 0;
-    for( ;; )
-    {
-        if ( (xQueueReceive(xOPT3001Queue, &xOPT3001MessageRecv, pdMS_TO_TICKS(100)) == pdPASS) )
-        {
-            xQueueReceive(xBMI160Queue, &xBMI160MessageRecv, 0);
-            // Scale the accelerometer value and cast to int
-            UARTprintf("\nAux Sensors:");
-            UARTprintf("Lux: %u\n", xOPT3001MessageRecv.ulfilteredLux);
-            UARTprintf("Accel: %d\n", xBMI160MessageRecv.ulfilteredAccel);
-        }
-        // if ( (xQueueReceive(xBMI160Queue, &xBMI160MessageRecv, pdMS_TO_TICKS(100)) == pdPASS) )
-        // {
-        //     // Scale the accelerometer value and cast to int
-        //     if ((print_idx % 50) == 0) 
-        //     {
-        //         UARTprintf("Accel: %d\n", xBMI160MessageRecv.ulfilteredAccel);
-        //     }
-        //     print_idx += 1;
-        // }
-    }
-}
+// // Queue Read Test Task
+// void vQueueReadTest( void *pvParameters )
+// {
+//     OPT3001Message xOPT3001MessageRecv;
+//     BMI160Message xBMI160MessageRecv;
+//     int print_idx = 0;
+//     for( ;; )
+//     {
+//         if ( (xQueueReceive(xOPT3001Queue, &xOPT3001MessageRecv, 0) == pdPASS) )
+//         {
+//             xQueueReceive(xBMI160Queue, &xBMI160MessageRecv, 0);
+//             // Scale the accelerometer value and cast to int
+//             UARTprintf("\nAux Sensors:");
+//             UARTprintf("Lux: %u\n", xOPT3001MessageRecv.ulfilteredLux);
+//             UARTprintf("Accel: %d\n", xBMI160MessageRecv.ulfilteredAccel);
+//         }
+//         // if ( (xQueueReceive(xBMI160Queue, &xBMI160MessageRecv, pdMS_TO_TICKS(100)) == pdPASS) )
+//         // {
+//         //     // Scale the accelerometer value and cast to int
+//         //     if ((print_idx % 50) == 0) 
+//         //     {
+//         //         UARTprintf("Accel: %d\n", xBMI160MessageRecv.ulfilteredAccel);
+//         //     }
+//         //     print_idx += 1;
+//         // }
+//     }
+// }
 /*-----------------------------------------------------------*/
 // Configuration functions
 static void prvConfigureOPT3001Sensor( void )
@@ -489,9 +533,8 @@ void xI2C2Handler( void )
 {
     /* Clear the interrupt. */
     // I2CMasterIntClear(I2C0_BASE);
-    I2CMasterIntClear(I2C2_BASE);
 
-    // // Check which sensor is using the I2C bus
+    // Check which sensor is using the I2C bus
     if (g_I2C_flag == OPT3001)
     {
         // Give the semaphore to unblock the OPT3001 I2C read
@@ -508,11 +551,13 @@ void xI2C2Handler( void )
         xSemaphoreGiveFromISR( xI2C0BMISemaphore, &xI2C0TaskWoken );
         portYIELD_FROM_ISR( xI2C0TaskWoken );
     }
+
+    I2CMasterIntClear(I2C2_BASE);
 }
 
 void xTimer6AHandler( void )
 {
-    /* Clear the hardware interrupt flag for Timer 7B. */
+    /* Clear the hardware interrupt flag for Timer 6A. */
     TimerIntClear(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
 
     // Notify the task to read the IMU sensor

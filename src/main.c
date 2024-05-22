@@ -83,20 +83,20 @@ int main( void )
     // Do Motor Stuff
     vCreateMotorTask();
 
-    UARTprintf("Input Configuration");  // This is needed to make UART work. Don't Delete (idk wtf is going on here)
+    // UARTprintf("Input Configuration");  // This is needed to make UART work. Don't Delete (idk wtf is going on here)
 
-    // /*                   Sensor Main Setup (Cal)               */
-    // // Semaphore for I2C non-blocking read/write
-    // xI2C0OPTSemaphore = xSemaphoreCreateBinary();
-    // xI2C0BMISemaphore = xSemaphoreCreateBinary();
-    // // Mutex for I2C
-    // xI2C0Mutex = xSemaphoreCreateMutex();
+    /*                   Sensor Main Setup (Cal)               */
+    // Semaphore for I2C non-blocking read/write
+    xI2C0OPTSemaphore = xSemaphoreCreateBinary();
+    xI2C0BMISemaphore = xSemaphoreCreateBinary();
+    // Mutex for I2C
+    xI2C0Mutex = xSemaphoreCreateMutex();
 
-    // if ( (xI2C0OPTSemaphore != NULL) && (xI2C0BMISemaphore != NULL) && (xI2C0Mutex != NULL) )
-    // {
-    //     // Create the tasks associated with sensor reading
-    //     vSensorTaskSetup();
-    // }
+    if ( (xI2C0OPTSemaphore != NULL) && (xI2C0BMISemaphore != NULL) && (xI2C0Mutex != NULL) )
+    {
+        // Create the tasks associated with sensor reading
+        vSensorTaskSetup();
+    }
 
 
     /*-----------------------------------------------------------*/
@@ -272,7 +272,7 @@ static void prvConfigureMotorControlTimer(void) {
     TimerLoadSet(TIMER4_BASE, TIMER_A, ui32Period);
 
     // Enable the timer to start running
-    TimerEnable(TIMER4_BASE, TIMER_A);
+    // TimerEnable(TIMER4_BASE, TIMER_A);
 
     // set up an interrupt for the timer
     TimerIntEnable(TIMER4_BASE, TIMER_TIMA_TIMEOUT);

@@ -29,26 +29,40 @@ int8_t readI2CBMI(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
     I2CMasterDataPut(I2C2_BASE, ui8Reg);
     I2CMasterControl(I2C2_BASE, I2C_MASTER_CMD_SINGLE_SEND);
 
+    // UARTprintf("R1\n");
     // Wait on semaphore
     if( xSemaphoreTake(xI2C0BMISemaphore, portMAX_DELAY) == pdPASS)
     {
+        // UARTprintf("");
         // Load device slave address
         I2CMasterSlaveAddrSet(I2C2_BASE, ui8Addr, true);
-
         // Read two bytes from I2C
         I2CMasterControl(I2C2_BASE, I2C_MASTER_CMD_SINGLE_RECEIVE);
     }
+    else
+    {
+        UARTprintf("Error taking semaphore1\n");
+    }
+    // UARTprintf("R1d\n");
+    // UARTprintf("Read1 \n");
     // Wait on semaphore
     if( xSemaphoreTake(xI2C0BMISemaphore, portMAX_DELAY) == pdPASS)
     {
+        // UARTprintf("s11\n");
         data[0] = I2CMasterDataGet(I2C2_BASE);
+        // UARTprintf("s22\n");
         // Set flag
         g_I2C_flag = NONE;
         return true;
     }
+    else
+    {
+        UARTprintf("Error taking semaphore2\n");
+    }
     // Set flag
     g_I2C_flag = NONE;
-    return false;    
+    return false;
+    // UARTprintf("R2d\n");    
 }
 
 int8_t writeI2CBMI(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)

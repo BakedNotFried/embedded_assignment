@@ -131,22 +131,20 @@ void vCreateMotorTask( void )
 // Motor State Machine
 static void prvMotorTask( void *pvParameters )
 {
+    // was 10. 618 - 1290 - 2080 - 3000 - 4000 - 4615 - 5050 - 5600 - 6000
     uint16_t duty_value = 10;
     uint16_t period_value = MOTOR_MAX_DUTY;
     int stateA, stateB, stateC;
 
     // TETSING STATE MACHINE   
 
-
-
     // uint32_t current_sensor[8];
     // uint32_t current_c1 = 0;
-
 
     /* Initialise the motors and set the duty cycle (speed) in microseconds */
     initMotorState(&motor_state); // set the struct up
 
-    setMotorRPM(500);
+    setMotorRPM(200);
     // stopMotor(1);
 
     enableMotor();
@@ -354,7 +352,7 @@ static void vCurrentRead( void *pvParameters )
         current /= 4096;
 
         // Calculate power -> P = V * I
-        power = current * 24;
+        power = current * (24 - 3.3);
 
         // Send the current and power value to the queue
         xCurrentvalueSend.value = current;
@@ -384,12 +382,12 @@ void vRPMRead( void *pvParameters )
         if (xQueueReceive(xRPMQueueInternal, &xRPMvalueRecv, 0) == pdPASS) {
             // Store the RPM value in the array
             rpm_array[index] = xRPMvalueRecv.value;
-            index = (index + 1) % 5;
+            index = (index + 1) % 10;
             sum = 0;
-            for (int i = 0; i < 5; i++) {
+            for (int i = 0; i < 10; i++) {
                 sum += rpm_array[i];
             }
-            rpm_filtered = sum / 5;
+            rpm_filtered = sum / 10;
         }
         // Send the filtered RPM value to the queue
         xRPMvalueSend.value = rpm_filtered;
@@ -413,7 +411,7 @@ void vQueueReadTest( void *pvParameters )
         // Read the RPM value from the queue
         if ( (xQueueReceive(xRPMQueueExternal, &xRPMvalueRecv, pdMS_TO_TICKS( 100 )) == pdPASS) && (xQueueReceive(xCurrentQueueExternal, &xCurrentvalueRecv, pdMS_TO_TICKS( 100 )) == pdPASS) && (xQueueReceive(xPowerQueueExternal, &xPowervalueRecv, pdMS_TO_TICKS( 100 )) == pdPASS) )
         {
-            if ((print_idx % 50) == 0) {
+            if ((print_idx % 200) == 0) {
                 // Print the values
                 UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
                 UARTprintf("Current: %d\n", xCurrentvalueRecv.value);
@@ -434,7 +432,6 @@ void vQueueReadTest( void *pvParameters )
 void Timer4IntHandler(void) {
     // Clear the timer interrupt
     TimerIntClear(TIMER4_BASE, TIMER_TIMA_TIMEOUT);
-    
 
     // Calculate error
     int error = motor_state.set_rpm - motor_state.current_rpm;
@@ -517,7 +514,8 @@ void HallSensorHandler(void)
         //calc RPM (60*10^9) nS per minute. elapsedTime in systemticks. each system tick 8.33nS. 60*10^9/8.33333 = 7200000000 (avoid float) 
         //uint32_t rpm = (uint32_t)((factor / ((float)elapsedTime)) * 10.0); //add digits back in 
 
-        uint32_t rpm = 60000 / (elapsedTimeInMilliseconds); 
+        // 0.7472 -> motor rpm correction factor
+        uint32_t rpm = 0.7472 * (60000 / (elapsedTimeInMilliseconds)); 
 
         motor_state.current_rpm = rpm; // This updates our global value.
 
