@@ -284,7 +284,7 @@ static void prvConfigureMotorControlTimer(void) {
     TimerLoadSet(TIMER4_BASE, TIMER_A, ui32Period);
 
     // Enable the timer to start running
-    // TimerEnable(TIMER4_BASE, TIMER_A);
+    TimerEnable(TIMER4_BASE, TIMER_A);
 
     // set up an interrupt for the timer
     TimerIntEnable(TIMER4_BASE, TIMER_TIMA_TIMEOUT);

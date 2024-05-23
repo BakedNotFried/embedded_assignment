@@ -92,4 +92,9 @@ typedef struct{
 
 MotorState motor_state;
 //RPMQueueData xRPMvalue;
+
+void motorStart(uint16_t rpm);
+void motorStop(bool brake);
+
+
 #endif // MOTOR_STATE_H
