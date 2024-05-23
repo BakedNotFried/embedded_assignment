@@ -10,7 +10,8 @@
         "stdint.h": "c",
         "semphr.h": "c",
         "array": "c",
-        "string": "c"
+        "string": "c",
+        "opt3001.h": "c"
     },
     "cmake.configureOnOpen": true
 }

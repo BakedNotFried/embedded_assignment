@@ -45,6 +45,12 @@
 // Binary Semaphore for I2C0 non-blocking read/write
 extern SemaphoreHandle_t xI2C0OPTSemaphore;
 extern SemaphoreHandle_t xI2C0BMISemaphore;
+
+// Semaphores for Sensor Tasks
+SemaphoreHandle_t xI2CConfigSemaphore;
+SemaphoreHandle_t xOPT3001ReadSemaphore;
+SemaphoreHandle_t xBMI160ReadSemaphore;
+
 // Mutex for I2C0
 extern SemaphoreHandle_t xI2C0Mutex;
 
@@ -63,12 +69,12 @@ QueueHandle_t xBMI160Queue = NULL;
 // Structs for Sensor Data Publishing
 struct OPT3001Message
 {
-    uint32_t ulfilteredLux;
+    int filteredLux;
 } xOPT3001Message;
 
 struct BMI160Message
 {
-    float ulfilteredAccel;
+    int32_t ulfilteredAccel;
 } xBMI160Message;
 
 // Configuration for the OPT3001 sensor
@@ -96,6 +102,11 @@ void vSensorTaskSetup( void )
     xOPT3001Queue = xQueueCreate(1, sizeof(struct OPT3001Message));
     xBMI160Queue = xQueueCreate(1, sizeof(struct BMI160Message));
 
+    // Create semaphores for sensor tasks
+    xI2CConfigSemaphore = xSemaphoreCreateBinary();
+    xOPT3001ReadSemaphore = xSemaphoreCreateBinary();
+    xBMI160ReadSemaphore = xSemaphoreCreateBinary();
+
     // Create the task to read the optical sensor
     xTaskCreate( vOPT3001Read,
                  "Opt 3001 Read/Pub Task",
@@ -120,6 +131,9 @@ static void vOPT3001Read( void *pvParameters )
     // Note if using semaphores for read/write, they need to be called within a RTOS task
     prvConfigureOPT3001Sensor();
 
+    // Semaphore for I2C Config
+    xSemaphoreGive(xI2CConfigSemaphore);
+
     // Configure Timer 7A
     prvConfigureHWTimer7A();
 
@@ -127,6 +141,7 @@ static void vOPT3001Read( void *pvParameters )
     float convertedLux = 0;
     uint16_t rawData = 0;
     bool success;
+
     // Array for filtered values
     int lux_array[10] = {0};
     int index = 0;
@@ -136,29 +151,22 @@ static void vOPT3001Read( void *pvParameters )
 
     // Timer Enable
     TimerEnable(TIMER7_BASE, TIMER_A);
-
-    // TickType_t xLastWakeTime = xTaskGetTickCount();
     for( ;; )
     {
         // Wait for notification from Timer7A interrupt
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (xSemaphoreTake(xOPT3001ReadSemaphore, portMAX_DELAY) == pdTRUE)
         {
-            // // Calc time passed
-            // TickType_t xCurrentTime = xTaskGetTickCount();
-            // TickType_t xElapsedTime = (xCurrentTime - xLastWakeTime) * portTICK_PERIOD_MS;
-            // UARTprintf("Time Passed: %d ms\n", xElapsedTime);
-            // xLastWakeTime = xCurrentTime;
-
-            //Read and convert OPT values
-            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-            success = sensorOpt3001Read(&rawData);
-            xSemaphoreGive(xI2C0Mutex);
-            if (success) {
+            if ( xSemaphoreTake( xI2C0Mutex, portMAX_DELAY ) == pdTRUE )
+            {
+                success = sensorOpt3001Read(&rawData);
+                xSemaphoreGive( xI2C0Mutex );
+            }
+            if (success) 
+            {
                 sensorOpt3001Convert(rawData, &convertedLux);
-                int lux_int = (int)convertedLux;
 
                 // Filter values
-                lux_array[index] = lux_int;
+                lux_array[index] = (int)convertedLux;
                 index = (index + 1) % 10;
                 int sum = 0;
                 for (int i = 0; i < 10; i++) {
@@ -167,16 +175,11 @@ static void vOPT3001Read( void *pvParameters )
                 int filtered_lux = sum / 10;
 
                 // Publish to Queue
-                xOPT3001Message.ulfilteredLux = filtered_lux;
-                xQueueSend(xOPT3001Queue, ( void * ) &xOPT3001Message, ( TickType_t ) 0 );
+                xOPT3001Message.filteredLux = filtered_lux;
+                xQueueSend(xOPT3001Queue, &xOPT3001Message, 0);
 
                 // DEBUG
-                UARTprintf("\nFiltered Lux: %5d\n", filtered_lux);
-                // Get the sensor configuration
-                // uint16_t config;
-                // readI2C(0x47, 0x7F, (uint8_t *)&config);
-                // config = (config << 8) | (config>>8 &0xFF);
-                // UARTprintf("OPT3001 Config: 0x%04x\n", config);
+                UARTprintf(">Lux:%d\n", filtered_lux);
             }
         }
     }
@@ -185,8 +188,8 @@ static void vOPT3001Read( void *pvParameters )
 // Periodic IMU Read Task
 static void xBMI160Read( void *pvParameters )
 {
-    // // Configure I2C0
-    prvConfigureI2C0();
+    // Wait for the I2C configuration semaphore
+    xSemaphoreTake(xI2CConfigSemaphore, portMAX_DELAY);
 
     // Configure Timer 6A
     prvConfigureHWTimer6A();
@@ -201,11 +204,9 @@ static void xBMI160Read( void *pvParameters )
     int16_t int_x = 0x0000;
     int16_t int_y = 0x0000;
     int16_t int_z = 0x0000;
-    int16_t prev_int_accel = 17367;
-    float accel = 0.0;
 
     // Array for filtered values
-    float accel_array[5] = {0};
+    int32_t accel_array[5] = {0};
     int index = 0;
 
     // Queue setup
@@ -213,86 +214,54 @@ static void xBMI160Read( void *pvParameters )
 
     // BMI160 Config
     uint8_t normal_accl_mode = 0x11;                                // Normal Mode, Accel Only
-    xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-    writeI2CBMI(0x69, BMI160_COMMAND_REG_ADDR, &normal_accl_mode);  // Write to Command Register
-    xSemaphoreGive(xI2C0Mutex);
-    vTaskDelay(200);                                                // Delay for 200ms to allow for sensor to start
-
-    // uint8_t offset_addr = 0x77;
-    // uint8_t offset_config = 0x40;
-    // writeI2CBMI(0x69, offset_addr, &offset_config);                // Write to Offset Config Register
-    // vTaskDelay(100);
-    // uint8_t gyro_offset_z_addr = 0x73;
-    // // twos complement -1000 0000
-    // uint8_t gyro_offset_z = 0x00;
-    // writeI2CBMI(0x69, gyro_offset_z_addr, &gyro_offset_z);          // Write to Gyro Offset Z Register
-    // vTaskDelay(100);                                                // Delay for 200ms to allow for sensor to start
+    if ( xSemaphoreTake( xI2C0Mutex, portMAX_DELAY ) == pdTRUE )     // Take Mutex
+    {
+        writeI2CBMI(0x69, BMI160_COMMAND_REG_ADDR, &normal_accl_mode);   // Write to Command Register
+        vTaskDelay( pdMS_TO_TICKS( 200 ) );                          // Delay for 200ms
+        xSemaphoreGive( xI2C0Mutex );                                 // Give Mutex
+    }
 
     // Timer Enable
     TimerEnable(TIMER6_BASE, TIMER_A);
-
-    // TickType_t xLastWakeTime = xTaskGetTickCount();
     for( ;; )
     {
-        // // Calc time passed
-        // TickType_t xCurrentTime = xTaskGetTickCount();
-        // TickType_t xElapsedTime = (xCurrentTime - xLastWakeTime) * portTICK_PERIOD_MS;
-        // UARTprintf("Time Passed: %d ms\n", xElapsedTime);
-        // xLastWakeTime = xCurrentTime;
-
         // Wait for notification from Timer7B interrupt
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (xSemaphoreTake(xBMI160ReadSemaphore, portMAX_DELAY) == pdTRUE)
         {
-            // Get Sensor Data for X,Y,Z
-            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-            readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR, &x_lsb);
-            readI2CBMI(0x69, 0x13, &x_msb);
-            xSemaphoreGive(xI2C0Mutex);
-            int_x = (int16_t)((x_msb << 8) | x_lsb);
-            // UARTprintf("BMI160 Accel X: %d\n", int_x);
-            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-            readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 2, &y_lsb);
-            readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 3, &y_msb);
-            xSemaphoreGive(xI2C0Mutex);
-            int_y = (int16_t)((y_msb << 8) | y_lsb);
-            // UARTprintf("BMI160 Accel Y: %d\n", int_y);
-            xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-            readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 4, &z_lsb);
-            readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 5, &z_msb);
-            xSemaphoreGive(xI2C0Mutex);
-            int_z = (int16_t)((z_msb << 8) | z_lsb);
-            // UARTprintf("BMI160 Accel Z: %d\n", int_z);
-
-            // Combine X,Y,Z into one value
-            int16_t int_accel = int_x + int_y + int_z;
-            int16_t int_jerk = int_accel - prev_int_accel;
-            prev_int_accel = int_accel;
-            // Actually using Jerk. Normalise to 1g and take absolute value
-            accel = (float)int_jerk / 16384.0;
-            if (accel < 0)
+            if ( xSemaphoreTake( xI2C0Mutex, portMAX_DELAY ) == pdTRUE )     // Take Mutex
             {
-                accel = -accel;
+                // Get Sensor Data for X,Y,Z
+                readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR, &x_lsb);
+                readI2CBMI(0x69, 0x13, &x_msb);
+                int_x = (int16_t)((x_msb << 8) | x_lsb);
+                readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 2, &y_lsb);
+                readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 3, &y_msb);
+                int_y = (int16_t)((y_msb << 8) | y_lsb);
+                readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 4, &z_lsb);
+                readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 5, &z_msb);
+                int_z = (int16_t)((z_msb << 8) | z_lsb);
+                xSemaphoreGive( xI2C0Mutex );  
             }
-        
+
+            // Combine X,Y,Z and get magnitude
+            int32_t accel = (int32_t)sqrt((int32_t)int_x*(int32_t)int_x + (int32_t)int_y*(int32_t)int_y + (int32_t)int_z*(int32_t)int_z);
+            
             // Filter values
             accel_array[index] = accel;
             index = (index + 1) % 5;
-            float sum = 0;
+            int32_t sum = 0;
             for (int i = 0; i < 5; i++) {
                 sum += accel_array[i];
             }
-            float filtered_accel = sum / 5;
+            int32_t filtered_accel = (sum / 5) - 17740;
+            filtered_accel = (filtered_accel < 0) ? -filtered_accel : filtered_accel;
 
-            // Publish to Queue
+            // // Publish to Queue
             xBMI160Message.ulfilteredAccel = filtered_accel;
-            xQueueSend(xBMI160Queue, ( void * ) &xBMI160Message, ( TickType_t ) 0 );
+            xQueueSend(xBMI160Queue, &xBMI160Message, 0 );
 
-            // // DEBUG
-            // if (filtered_accel >  0.5)
-            // {
-            //     UARTprintf("EMERGENCY!\n");
-            // }
-            UARTprintf("\nBMI160 Jerk: %d\n", int_jerk);
+            // DEBUG
+            UARTprintf(">Accel:%d\n", filtered_accel);
         }
     }
 }
@@ -316,7 +285,7 @@ static void prvConfigureOPT3001Sensor( void )
         // to see which functions are allocated per pin.
         GPIOPinTypeI2CSCL(GPIO_PORTB_BASE, GPIO_PIN_2);
         GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_3);
-        I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false);
+        I2CMasterInitExpClk(I2C0_BASE, 120000000, false);
 
         // Interrupt Configuration for I2C
         IntEnable(INT_I2C0);
@@ -337,37 +306,17 @@ static void prvConfigureOPT3001Sensor( void )
         // UARTprintf("All Tests Passed!\n\n");
 
         // Initialize opt3001 sensor
-        // sensorOpt3001Init();
-        xSemaphoreTake(xI2C0Mutex, portMAX_DELAY);
-        sensorOpt3001Enable(true);
-        xSemaphoreGive(xI2C0Mutex);
-}
-
-static void prvConfigureI2C0( void )
-{
-        // The I2C0 peripheral must be enabled before use.
-        SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
-        SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);
-
-        // Configure the pin muxing for I2C0 functions on port B2 and B3.
-        // This step is not necessary if your part does not support pin muxing.
-        GPIOPinConfigure(GPIO_PB2_I2C0SCL);
-        GPIOPinConfigure(GPIO_PB3_I2C0SDA);
-
-        // Select the I2C function for these pins.  This function will also
-        // configure the GPIO pins pins for I2C operation, setting them to
-        // open-drain operation with weak pull-ups.  Consult the data sheet
-        // to see which functions are allocated per pin.
-        GPIOPinTypeI2CSCL(GPIO_PORTB_BASE, GPIO_PIN_2);
-        GPIOPinTypeI2C(GPIO_PORTB_BASE, GPIO_PIN_3);
-        I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false);
-
-        // Interrupt Configuration for I2C
-        IntEnable(INT_I2C0);
-        I2CMasterIntEnable(I2C0_BASE);
-
-        // // Enable Master interrupt
-        IntMasterEnable();
+        // 
+        if ( xSemaphoreTake( xI2C0Mutex, portMAX_DELAY ) == pdTRUE )     // Take Mutex
+        {
+            // sensorOpt3001Init();
+            sensorOpt3001Enable(true);
+            xSemaphoreGive(xI2C0Mutex);
+        }
+        else
+        {
+            UARTprintf("Error: Light Sensor not enabled\n");
+        }
 }
 
 static void prvConfigureHWTimer6A( void )
@@ -379,7 +328,7 @@ static void prvConfigureHWTimer6A( void )
     TimerConfigure(TIMER6_BASE, TIMER_CFG_PERIODIC);
 
     /* Set the Timer 6A load value to run at 100 Hz. */
-    TimerLoadSet(TIMER6_BASE, TIMER_A, configCPU_CLOCK_HZ / 100);
+    TimerLoadSet(TIMER6_BASE, TIMER_A, configCPU_CLOCK_HZ / 70);
 
     /* Configure the Timer 6A interrupt for timeout. */
     TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
@@ -436,16 +385,6 @@ void xI2C0Handler( void )
         xSemaphoreGiveFromISR( xI2C0BMISemaphore, &xI2C0TaskWoken );
         portYIELD_FROM_ISR( xI2C0TaskWoken );
     }
-
-    // // Get status of the I2C
-    // uint32_t ui32Status;
-    // ui32Status = I2CMasterIntStatus(I2C0_BASE, true);
-
-    // Give the semaphore to unblock the I2C read
-    // BaseType_t xI2C0TaskWoken = pdFALSE;
-    // xI2C0TaskWoken = pdFALSE;
-    // xSemaphoreGiveFromISR( xI2C0OPTSemaphore, &xI2C0TaskWoken );
-    // portYIELD_FROM_ISR( xI2C0TaskWoken );
 }
 
 void xTimer6AHandler( void )
@@ -455,11 +394,8 @@ void xTimer6AHandler( void )
 
     // Notify the task to read the IMU sensor
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(xBMI160ReadHandle, &xHigherPriorityTaskWoken);
+    xSemaphoreGiveFromISR(xBMI160ReadSemaphore, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-
-    // debug print
-    // UARTprintf("Timer 6A Interrupt\n");
 }
 
 void xTimer7AHandler( void )
@@ -469,14 +405,9 @@ void xTimer7AHandler( void )
 
     // Notify the task to read the OPT3001 sensor
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(xOpt3001ReadHandle, &xHigherPriorityTaskWoken);
+    xSemaphoreGiveFromISR(xOPT3001ReadSemaphore, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-
-    // debug print
-    // UARTprintf("Timer 7A Interrupt\n");
 }
-
-
 
 // Leave this empty
 void vApplicationTickHook( void )
