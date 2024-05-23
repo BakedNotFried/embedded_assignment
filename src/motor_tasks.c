@@ -81,6 +81,7 @@ TaskHandle_t vRPMReadHandle;
 //external structs
 extern SemaphoreHandle_t xADC1_Semaphore;
 extern MotorState motor_state;
+extern MotorStateExternal motor_state_external;
 
 // Queues for RPM, Current and Power
 extern QueueHandle_t xRPMQueueExternal;
@@ -135,7 +136,11 @@ volatile float integral_error = 0;
 
 /*----MOTOR API FUNCTIONS--------------------------------------------------*/
 void motorStart(uint16_t rpm){
-    motor_state.Estop_condition =  Disabled;
+    
+    //reset both our Estops
+    motor_state.Estop_condition = Disabled;
+    motor_state_external.Estop_condition = Disabled;
+
     //Enable the Hall Interrupts
     GPIOIntEnable(HALL_A_PORT, HALL_A_PIN);
     GPIOIntEnable(HALL_B_PORT, HALL_B_PIN);
@@ -147,9 +152,10 @@ void motorStart(uint16_t rpm){
 
     //reset the PID error
     motor_state.controller_ouput = 0;
+    //reset the integral error
+    motor_state.controller_error = 0;
 
     setMotorRPM(rpm);
-    // stopMotor(1);
 
     enableMotor();
     initMotorLib(period_value);
@@ -249,7 +255,8 @@ void vCreateMotorTask( void )
 // Motor State Machine
 static void prvMotorTask( void *pvParameters )
 {
-    // was 10. 618 - 1290 - 2080 - 3000 - 4000 - 4615 - 5050 - 5600 - 6000
+    // Testing states
+    //####################### FROM HERE TO ----- ##############################
     motorStart(500);
 
     vTaskDelay(pdMS_TO_TICKS( 10000 ));
@@ -262,121 +269,73 @@ static void prvMotorTask( void *pvParameters )
     vTaskDelay(pdMS_TO_TICKS( 10000 ));
     motor_state.Estop_condition = Enabled;
 
+    //######################## ---- HERE IS TESTED  ######################################## 
+    //####################### BELOW STATE MACHINE IS NOT TESTED ############################
+
+    //
+    // TODO: Test State Machine
+    // Uncommented tested zone above and set if() to true.
+    // USE EXTERNAL_SET_RPM and EXTERNAL_SET_ESTOP only to test state machine. all state should be handled internally.
 
     for (;;)
     {
         UARTprintf("STATE: %d \n", motor_state.current_state);
-        UARTprintf("Current RPM: %d \n", motor_state.current_rpm);
-        UARTprintf("set RPM: %u \n", motor_state.set_rpm);
-        UARTprintf("Duty Value: %d \n", (uint16_t)motor_state.duty_value);
-        UARTprintf("Estop condition: %d \n", motor_state.Estop_condition);
-        UARTprintf("Controller Error: %d \n", (int32_t)motor_state.controller_error);
-        UARTprintf("Controller Output: %d \n", (int32_t)motor_state.controller_ouput);
-        vTaskDelay(pdMS_TO_TICKS(3000));
-    if (0){
-        //wake on state change (Notify/ Semaphore)
-        switch(motor_state.current_state){
-            case Idle:
-                if ( motor_state.set_rpm > 0){
 
+        vTaskDelay(pdMS_TO_TICKS(500));
+        if (0){
+            //switch on the internal state. 
+            // check conditions on external API state.
+            switch(motor_state.current_state){
+                case Idle:
+                    if ( motor_state_external.set_rpm > 0){
+                        //set the internal state to our external setpoint 
+                        motorStart(motor_state_external.set_rpm);
+                        // go to starting state
+                        motor_state.current_state = Starting;
+                    }
+                    if (motor_state_external.set_rpm == 0){
+                        //soft brake to 0 rpm
+                        motorStop(false);
+                    }
+                    break;
+
+                case Starting:
+                    // if we hit Estop during start go to EStop
+                    if (motor_state_external.Estop_condition == Enabled){
+                        setMotorEstop();
+                        motor_state.current_state = EStop;
+                    }
+                    // if our external API set point is within 10 percent of the internal rpm go to running
+                    if (motor_state_external.set_rpm > motor_state.current_rpm *0.9 ||  motor_state_external.set_rpm < motor_state.current_rpm * 1.1  ){
+                        motor_state.current_state = Running;
+                    }
+                    break;
+
+                case Running:
+                    // we are already at set RPM but Estop is true
+                    if (motor_state_external.Estop_condition == Enabled){
+                        setMotorEstop();
+                        motor_state.current_state = EStop;
+                    }
+                    // we have set current RPM to 0 go IDLE
                     if (motor_state.current_rpm == 0){
-                        //motorStart(motor_state.set_rpm);
+                        motorStop(false);
+                        motor_state.current_state = Idle;
+                    }else{
+                        //we are free to set the RPM with external API
+                        motor_state.set_rpm = motor_state_external.set_rpm;
                     }
 
-                    //motor_state.duty_value = 0.5;
-                    //optionally start the timer here so we know we start at timer = 0;
-                    motor_state.current_state = Starting;
+                    break;
+                case EStop:
+                    //wait until we have safely stoppped. then go to IDLE
+                    if (motor_state.current_rpm == 0){
+                        motor_state.current_state = Idle;
+                    }     
+                    break;       
                 }
-                break;
-
-            case Starting:
-                if (motor_state.Estop_condition == Enabled){
-                    //motor_state.duty_value = 1;
-                    motor_state.set_rpm = 0;
-                    motor_state.current_state = EStop;
-                }
-                if (motor_state.set_rpm == motor_state.current_rpm){
-                    motor_state.current_state = Running;
-                }
-                break;
-
-            case Running:
-                if (motor_state.Estop_condition == Enabled){
-                    //motor_state.duty_value = 1;
-                    motor_state.set_rpm = 0;
-                    motor_state.current_state = EStop;
-                }
-                if (motor_state.current_rpm == 0){
-                    motor_state.current_state = Idle;
-                }
-                break;
-            case EStop:
-                if (motor_state.set_rpm == motor_state.current_rpm){
-                    motor_state.current_state = Idle;
-                }     
-                break;       
         }
-        }
-        /*
-        if(duty_value>=period_value){
-            stopMotor(1);
-            UARTprintf("Motor Stop!\n");
-        }else{
-            setDuty(duty_value);
-            vTaskDelay(pdMS_TO_TICKS( 1000 ));
-            duty_value++;
-        }
-        */
-        // RPMQueueData xRecievedRPM;
-        // if (xQueueReceive(xRPMQueue, &xRecievedRPM, 100) == pdPASS) {
-        //     //motor_state.current_rpm = xRecievedRPM.value; UPDATE IN ISR so that it can react quickly
-        //     UARTprintf("RPM: %u\n", xRecievedRPM.value);
-        //     // UARTprintf("Ticks: %u\n", xRecievedRPM.ticks);
-        // }else{
-        //     //did not receive from Queue in 100ms
-        //     UARTprintf("RPM: 0\n");
-        // }
-
-        // UARTprintf("STATE: %d \n", motor_state.current_state);
-        // UARTprintf("Current RPM: %d \n", motor_state.current_rpm);
-        // UARTprintf("set RPM: %u \n", motor_state.set_rpm);
-        // UARTprintf("Duty Value: %d \n", (uint16_t)motor_state.duty_value);
-        // UARTprintf("Estop condition: %d \n", motor_state.Estop_condition);
-        // UARTprintf("Controller Error: %d \n", (int32_t)motor_state.controller_error);
-        // UARTprintf("Controller Output: %d \n", (int32_t)motor_state.controller_ouput);
-
-        //12 bits ADC
-        // UARTprintf("Before Read\n");
-        // ADC1_Read(&current_c1);
-        // UARTprintf("Current draw: %d \n", 2048 - current_c1);
-        // ADC1_Read(current_sensor);
-        // char bufferC[100];
-        // uint32_t average_0 = (current_sensor[0]+ current_sensor[1]+ current_sensor[2]+ current_sensor[3])/4;
-        // usprintf(bufferC, "Channel 0 Value: %u, value: %u, value %u, value: %u average :%u \n", current_sensor[0], current_sensor[1], current_sensor[2], current_sensor[3], average_0);
-        // UARTprintf(bufferC);
-
-        // char bufferB[100];
-        // uint32_t average_4 = (current_sensor[4]+ current_sensor[5]+ current_sensor[6]+ current_sensor[7])/4;
-        // usprintf(bufferB, "Channel 4 Value: %u, value: %u, value %u, value: %u  average: %u \n", current_sensor[4], current_sensor[5], current_sensor[6], current_sensor[7], average_4);
-        // UARTprintf(bufferB);
-
-        // int power = (int)calculatePower(current_sensor);
-        // UARTprintf("Power draw: %d milliWatts\n", power);
-
-        // vTaskDelay(pdMS_TO_TICKS( 100 ));
-
-        //uint32_t ADC_ref = ADCReferenceGet(ADC1_BASE);
-        //UARTprintf("ADC ref: %u \n", ADC_ref);
-
     }
-    // give the read hall effect sensor lines to updateMotor() to move the motor
-    // one single phase
-    // Recommendation is to use an interrupt on the hall effect sensors GPIO lines 
-    // So that the motor continues to be updated every time the GPIO lines change from high to low
-    // or low to high
-    // Include the updateMotor function call in the ISR to achieve this behaviour.
-
-    /* Motor test - ramp up the duty cycle from 10% to 100%, than stop the motor */
 }
 /*-----------------------------------------------------------*/
 // Current Read Task
@@ -478,10 +437,23 @@ void vRPMRead( void *pvParameters )
     RPMQueueData xRPMvalueSend;
     for( ;; )
     {
+        
         // Read the RPM value from the queue
         if (xQueueReceive(xRPMQueueInternal, &xRPMvalueRecv, 0) == pdPASS) {
             // Store the RPM value in the array
             rpm_array[index] = xRPMvalueRecv.value;
+            index = (index + 1) % 10;
+            sum = 0;
+            for (int i = 0; i < 10; i++) {
+                sum += rpm_array[i];
+            }
+            rpm_filtered = sum / 10;
+        }else{
+            // we didnt get any data in the queue, must be stopped.
+            //
+            // TODO: TEST THIS
+            //
+            rpm_array[index] = 0;
             index = (index + 1) % 10;
             sum = 0;
             for (int i = 0; i < 10; i++) {
@@ -724,6 +696,10 @@ static void vOPT3001Read( void *pvParameters )
 /* Interrupt handlers */
 
 void Timer4IntHandler(void) {
+    //
+    // TODO: Test the Acceleration and Deceleration
+    //
+
     // Clear the timer interrupt
     TimerIntClear(TIMER4_BASE, TIMER_TIMA_TIMEOUT);
 
@@ -745,13 +721,18 @@ void Timer4IntHandler(void) {
             pid_duty = MAX_DELTA_DUTY_NORMAL;
         }
 
-        if (pid_duty > 0.005){
-            pid_duty = 0.005;
+        //set our accelertion limits
+        // every 10ms the maximum adjust is 0.05 duty cycle. we have 100 rpm per duty value. therefore 1s/10ms = 100.
+        // then (0.05 duty change) * 100 (timer ticks in 1 second) = 5duty change per second
+        // we have 100 rpm per duty spo 5 duty change per second * 100 = [[[ 500 rpm/s ]]] 
+        if (pid_duty > 0.05){
+            pid_duty = 0.05;
         }
-        else if (pid_duty < -0.005){
-            pid_duty = -0.005;
+        else if (pid_duty < -0.05){
+            pid_duty = -0.05;
         }
 
+        //add our adjusted duty to the controller 
         motor_state.controller_ouput += pid_duty; 
 
         // Ensure controller output is within valid range
@@ -762,13 +743,15 @@ void Timer4IntHandler(void) {
         }
 
         // Apply the output as a new duty cycle
+        //convert the float to uint16_t and write to the motor
         motor_state.duty_value = (uint16_t)motor_state.controller_ouput;
 
         setDuty(motor_state.duty_value);
     }
 
-
     // Handle Estop condition
+    // similar calculation as above except we want 1000rpm/s so double the max duty change.
+    // this will be constant acceleration.
     if (motor_state.Estop_condition == Enabled) {
 
         if (motor_state.duty_value > 1){
@@ -778,13 +761,7 @@ void Timer4IntHandler(void) {
         else{
             motorStop(true);
         }
-        // TODO constant deceleration
-        // Reset to a safe duty cycle if needed in an emergency
-         // Verify if this should instead be 0 or some other safe value
     }
-
-    // Optionally log error and duty value for debugging
-    //UARTprintf("Error: %d, Duty: %d\n", error, motor_state.duty_value);
 }
 
 void HallSensorHandler(void)
@@ -793,13 +770,11 @@ void HallSensorHandler(void)
     uint32_t HALL_A_Status, HALL_B_Status, HALL_C_Status;
     int stateA, stateB, stateC;
     int num_pole_pairs = 4;
-    //BaseType_t xMotorSenseTaskWoken = pdFALSE;
 
     // Read the interrupt status to find the cause of the interrupt.
     HALL_A_Status = GPIOIntStatus(HALL_A_PORT, true);
     HALL_B_Status = GPIOIntStatus(HALL_B_PORT, true);
     HALL_C_Status = GPIOIntStatus(HALL_C_PORT, true);
-    //UARTprintf("Hall Interrupt Read 1: %u, 2: %lu, 3: %lu,\n", HALL_A_Status, HALL_B_Status, HALL_C_Status);
 
     // Clear interrupt
     GPIOIntClear(HALL_A_PORT, HALL_A_Status);
@@ -819,16 +794,9 @@ void HallSensorHandler(void)
         endTime = xTaskGetTickCount();
         pulseCount = 0; // Reset pulse count for the next rotation
 
-        // Calculate the elapsed time and RPM
-
-
         //uint32_t elapsedTime = startTime - endTime; // Assuming the timer counts down
         TickType_t elapsedTime = endTime - startTime;
         uint32_t elapsedTimeInMilliseconds = elapsedTime * portTICK_PERIOD_MS;
-        //UARTprintf("Elapsed Ticks: %u\n", elapsedTime);
-        //float factor = 553846154.0; // should be 720000000, but it was out by a factor of 1.3 ?????
-        //calc RPM (60*10^9) nS per minute. elapsedTime in systemticks. each system tick 8.33nS. 60*10^9/8.33333 = 7200000000 (avoid float) 
-        //uint32_t rpm = (uint32_t)((factor / ((float)elapsedTime)) * 10.0); //add digits back in 
 
         // 0.7472 -> motor rpm correction factor
         uint32_t rpm = 0.7472 * (60000 / (elapsedTimeInMilliseconds)); 
@@ -840,34 +808,15 @@ void HallSensorHandler(void)
         if (xQueueSend(xRPMQueueInternal, &xRPMvalue, 0) != pdPASS) {
             // Handle error: Queue is full
         }
-        
-        // TEST HERE Optionally print or return the RPM
-        //UARTprintf("RPM: %u\n", rpm);
-        // THEN OUPUT TO QUEUE
-    }
 
+    }
 
     // Read hall effect sensors
     stateA = GPIOPinRead(HALL_A_PORT, HALL_A_PIN) ? 1 : 0;
     stateB = GPIOPinRead(HALL_B_PORT, HALL_B_PIN) ? 1 : 0;
     stateC = GPIOPinRead(HALL_C_PORT, HALL_C_PIN) ? 1 : 0;
 
-    // // Checking current on C coil
-    // if (stateC == 1){
-    //     ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
-    //     // 1 ms delay
-    //     // vTaskDelay(pdMS_TO_TICKS( 1 ));
-    // }
-
-   // UARTprintf("Hall Read 1: %d, 2: %d, 3: %d,\n", stateA, stateB, stateC);
-    // Call updateMotor to change to the next phase
-    // try debounce the noise
-
-    // ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
     updateMotor(stateA, stateB, stateC);
-    // ADCProcessorTrigger(ADC1_BASE, ADC_SEQ_1);
-    //Optionally add code for motor speed sensing or additional control feedback.
-    
 }
 
 void initMotorState(MotorState *motor_state){
@@ -893,16 +842,36 @@ void MotorRPMTimerStop() {
 }
 
 void setMotorRPM(uint16_t rpm){
-    // UARTprintf("RPM set to: %d \n", rpm);
     motor_state.set_rpm = rpm;
-    //post sem
 }
 
 void setMotorEstop(){
     motor_state.Estop_condition = Enabled;
-    motor_state.set_rpm = 0;
-    //post Sem
+    motor_state.set_rpm = 10;
 }
+
+/*########################EXTERNAL MOTOR CONTROL API##############################################################*/
+
+void EXTERNAL_SET_RPM(uint16_t set_rpm){
+    //
+    //TODO: ADD MUTEX
+    // 
+    if (set_rpm > 4500){
+        set_rpm = 4500;
+    }
+    if (set_rpm < 0){
+        set_rpm = 0;
+    }
+    motor_state_external.set_rpm = set_rpm;
+}
+
+void EXTERNAL_SET_ESTOP(){
+    //
+    //TODO: ADD MUTEX
+    // 
+    motor_state_external.Estop_condition = Enabled;
+}
+
 /*#################################################################################################################*/
 
 /*-----------------------------------------------------------*/

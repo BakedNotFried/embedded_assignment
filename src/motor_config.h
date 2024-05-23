@@ -91,10 +91,22 @@ typedef struct{
 } MotorState;
 
 MotorState motor_state;
+
+typedef struct{
+    volatile EStop_e Estop_condition;
+    volatile uint32_t set_rpm;
+} MotorStateExternal;
+
+MotorStateExternal motor_state_external;
+
 //RPMQueueData xRPMvalue;
 
 void motorStart(uint16_t rpm);
 void motorStop(bool brake);
+
+
+void EXTERNAL_SET_RPM(uint16_t set_rpm);
+void EXTERNAL_SET_ESTOP();
 
 
 #endif // MOTOR_STATE_H
