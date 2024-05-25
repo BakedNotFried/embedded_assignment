@@ -44,10 +44,16 @@ static void IntDefaultHandler(void);
 extern void xPortPendSVHandler(void);
 extern void vPortSVCHandler(void);
 extern void xPortSysTickHandler(void);
-extern void xI2C0Handler(void);
-extern void xTimer7AHandler(void);
-extern void xTimer7BHandler(void);
+extern void xTimer1IntHandler(void);
+extern void TouchScreenIntHandler(void);
 
+extern void xI2C2Handler(void);
+extern void xTimer7AHandler(void);
+extern void xTimer6AHandler(void);
+extern void HallSensorHandler(void);
+extern void ADC1_Sequence1_Handler(void);
+extern void Timer4IntHandler(void);
+extern void xTimer3AHandler(void);
 //*****************************************************************************
 //
 // The entry point for the application.
@@ -96,20 +102,20 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // UART0 Rx and Tx
     IntDefaultHandler,                      // UART1 Rx and Tx
     IntDefaultHandler,                      // SSI0 Rx and Tx
-    xI2C0Handler,                      // I2C0 Master and Slave
+    IntDefaultHandler,                      // I2C0 Master and Slave
     IntDefaultHandler,                      // PWM Fault
     IntDefaultHandler,                      // PWM Generator 0
     IntDefaultHandler,                      // PWM Generator 1
     IntDefaultHandler,                      // PWM Generator 2
     IntDefaultHandler,                      // Quadrature Encoder 0
-    IntDefaultHandler,                      // ADC Sequence 0
+    ADC1_Sequence1_Handler,                 // ADC Sequence 0
     IntDefaultHandler,                      // ADC Sequence 1
     IntDefaultHandler,                      // ADC Sequence 2
-    IntDefaultHandler,                      // ADC Sequence 3
+    TouchScreenIntHandler,                  // ADC Sequence 3
     IntDefaultHandler,                      // Watchdog timer
     IntDefaultHandler,                      // Timer 0 subtimer A
     IntDefaultHandler,                      // Timer 0 subtimer B
-    IntDefaultHandler,                      // Timer 1 subtimer A
+    xTimer1IntHandler,                      // Timer 1 subtimer A
     IntDefaultHandler,                      // Timer 1 subtimer B
     IntDefaultHandler,                      // Timer 2 subtimer A
     IntDefaultHandler,                      // Timer 2 subtimer B
@@ -120,10 +126,10 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // FLASH Control
     IntDefaultHandler,                      // GPIO Port F
     IntDefaultHandler,                      // GPIO Port G
-    IntDefaultHandler,                      // GPIO Port H
+    HallSensorHandler,                      // GPIO Port H
     IntDefaultHandler,                      // UART2 Rx and Tx
     IntDefaultHandler,                      // SSI1 Rx and Tx
-    IntDefaultHandler,                      // Timer 3 subtimer A
+    xTimer3AHandler,                        // Timer 3 subtimer A
     IntDefaultHandler,                      // Timer 3 subtimer B
     IntDefaultHandler,                      // I2C1 Master and Slave
     IntDefaultHandler,                      // CAN0
@@ -149,9 +155,9 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // UART5 Rx and Tx
     IntDefaultHandler,                      // UART6 Rx and Tx
     IntDefaultHandler,                      // UART7 Rx and Tx
-    IntDefaultHandler,                      // I2C2 Master and Slave
+    xI2C2Handler,                           // I2C2 Master and Slave
     IntDefaultHandler,                      // I2C3 Master and Slave
-    IntDefaultHandler,                      // Timer 4 subtimer A
+    Timer4IntHandler,                       // Timer 4 subtimer A
     IntDefaultHandler,                      // Timer 4 subtimer B
     IntDefaultHandler,                      // Timer 5 subtimer A
     IntDefaultHandler,                      // Timer 5 subtimer B
@@ -160,8 +166,8 @@ void (* const g_pfnVectors[])(void) =
     0,                                      // Reserved
     IntDefaultHandler,                      // I2C4 Master and Slave
     IntDefaultHandler,                      // I2C5 Master and Slave
-    IntDefaultHandler,                      // GPIO Port M
-    IntDefaultHandler,                      // GPIO Port N
+    HallSensorHandler,                      // GPIO Port M
+    HallSensorHandler,                      // GPIO Port N
     0,                                      // Reserved
     IntDefaultHandler,                      // Tamper
     IntDefaultHandler,                      // GPIO Port P (Summary or P0)
@@ -186,10 +192,10 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // AES 0
     IntDefaultHandler,                      // DES3DES 0
     IntDefaultHandler,                      // LCD Controller 0
-    IntDefaultHandler,                      // Timer 6 subtimer A
+    xTimer6AHandler,                        // Timer 6 subtimer A
     IntDefaultHandler,                      // Timer 6 subtimer B
-    xTimer7AHandler,                      // Timer 7 subtimer A
-    xTimer7BHandler,                      // Timer 7 subtimer B
+    xTimer7AHandler,                        // Timer 7 subtimer A
+    IntDefaultHandler,                      // Timer 7 subtimer B
     IntDefaultHandler,                      // I2C6 Master and Slave
     IntDefaultHandler,                      // I2C7 Master and Slave
     IntDefaultHandler,                      // HIM Scan Matrix Keyboard 0
