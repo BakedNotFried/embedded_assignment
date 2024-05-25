@@ -18,7 +18,7 @@ extern SemaphoreHandle_t xI2C0BMISemaphore;
 enum sensorType {NONE, OPT3001, BMI160};
 extern enum sensorType g_I2C_flag;
 
-int8_t readI2CBMI(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
+bool readI2CBMI(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
 {
     bool success = false;
 
@@ -55,7 +55,7 @@ int8_t readI2CBMI(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
     return success;
 }
 
-int8_t writeI2CBMI(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
+bool writeI2CBMI(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data)
 {
     bool success = false;
 

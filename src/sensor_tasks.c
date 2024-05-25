@@ -80,9 +80,6 @@ struct BMI160Message
 // Configuration for the OPT3001 sensor
 static void prvConfigureOPT3001Sensor( void );
 
-// Configuration for the I2C0
-static void prvConfigureI2C0( void );
-
 // Configuration for the HW Timer 6A and 7A
 static void prvConfigureHWTimer6A( void );
 static void prvConfigureHWTimer7A( void );
@@ -204,8 +201,11 @@ static void xBMI160Read( void *pvParameters )
     int16_t int_x = 0x0000;
     int16_t int_y = 0x0000;
     int16_t int_z = 0x0000;
+    bool success;
 
     // Array for filtered values
+    int filter_len = 5;
+    int accel_bias = 17740;
     int32_t accel_array[5] = {0};
     int index = 0;
 
@@ -231,37 +231,40 @@ static void xBMI160Read( void *pvParameters )
             if ( xSemaphoreTake( xI2C0Mutex, portMAX_DELAY ) == pdTRUE )     // Take Mutex
             {
                 // Get Sensor Data for X,Y,Z
-                readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR, &x_lsb);
-                readI2CBMI(0x69, 0x13, &x_msb);
+                success = readI2CBMI(0x69, 0x12, &x_lsb);
+                success = readI2CBMI(0x69, 0x13, &x_msb);
                 int_x = (int16_t)((x_msb << 8) | x_lsb);
-                readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 2, &y_lsb);
-                readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 3, &y_msb);
+                success = readI2CBMI(0x69, 0x14, &y_lsb);
+                success = readI2CBMI(0x69, 0x15, &y_msb);
                 int_y = (int16_t)((y_msb << 8) | y_lsb);
-                readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 4, &z_lsb);
-                readI2CBMI(0x69, BMI160_ACCEL_DATA_ADDR + 5, &z_msb);
+                success = readI2CBMI(0x69, 0x16, &z_lsb);
+                success = readI2CBMI(0x69, 0x17, &z_msb);
                 int_z = (int16_t)((z_msb << 8) | z_lsb);
-                xSemaphoreGive( xI2C0Mutex );  
+                xSemaphoreGive( xI2C0Mutex );
             }
 
-            // Combine X,Y,Z and get magnitude
-            int32_t accel = (int32_t)sqrt((int32_t)int_x*(int32_t)int_x + (int32_t)int_y*(int32_t)int_y + (int32_t)int_z*(int32_t)int_z);
-            
-            // Filter values
-            accel_array[index] = accel;
-            index = (index + 1) % 5;
-            int32_t sum = 0;
-            for (int i = 0; i < 5; i++) {
-                sum += accel_array[i];
+            if (success)
+            {
+                // Combine X,Y,Z and get magnitude
+                int32_t accel = (int32_t)sqrt((int32_t)int_x*(int32_t)int_x + (int32_t)int_y*(int32_t)int_y + (int32_t)int_z*(int32_t)int_z);
+                
+                // Filter values
+                accel_array[index] = accel;
+                index = (index + 1) % filter_len;
+                int32_t sum = 0;
+                for (int i = 0; i < filter_len; i++) {
+                    sum += accel_array[i];
+                }
+                int32_t filtered_accel = (sum / filter_len) - accel_bias;
+                filtered_accel = (filtered_accel < 0) ? -filtered_accel : filtered_accel;
+
+                // // Publish to Queue
+                xBMI160Message.ulfilteredAccel = filtered_accel;
+                xQueueSend(xBMI160Queue, &xBMI160Message, 0 );
+
+                // DEBUG
+                UARTprintf(">Accel:%d\n", filtered_accel);
             }
-            int32_t filtered_accel = (sum / 5) - 17740;
-            filtered_accel = (filtered_accel < 0) ? -filtered_accel : filtered_accel;
-
-            // // Publish to Queue
-            xBMI160Message.ulfilteredAccel = filtered_accel;
-            xQueueSend(xBMI160Queue, &xBMI160Message, 0 );
-
-            // DEBUG
-            UARTprintf(">Accel:%d\n", filtered_accel);
         }
     }
 }

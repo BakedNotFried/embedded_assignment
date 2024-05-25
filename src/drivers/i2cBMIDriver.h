@@ -8,8 +8,8 @@
 
 
 // ----------------------- Exported prototypes -----------------------
-extern int8_t readI2CBMI(uint8_t id, uint8_t reg_addr, uint8_t *data);
-extern int8_t writeI2CBMI(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data);
+extern bool readI2CBMI(uint8_t id, uint8_t reg_addr, uint8_t *data);
+extern bool writeI2CBMI(uint8_t ui8Addr, uint8_t ui8Reg, uint8_t *data);
 
 
 #endif /* _I2CBMIDRIVER_H_ */
