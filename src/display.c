@@ -1124,14 +1124,6 @@ void vQueueTask( void )
     {
         UARTprintf("RPM Queue or Current Queue or Power Queue creation failed\n");
     }
-    // Create queues for sensor data pub
-    xOPT3001Queue = xQueueCreate(1, sizeof(xOPT3001Message));
-    xBMI160Queue = xQueueCreate(1, sizeof(xBMI160Message));
-
-    if (xOPT3001Queue == NULL || xBMI160Queue == NULL)
-    {
-        UARTprintf("Error creating Sensor Queues\n");
-    }
 
     UARTprintf("Creating tasks\n");
 
