@@ -121,7 +121,6 @@ SemaphoreHandle_t xI2C0OPTSemaphore = NULL;
 SemaphoreHandle_t xI2C0BMISemaphore = NULL;
 // Global Mutex for I2C0
 SemaphoreHandle_t xI2C0Mutex = NULL;
-SemaphoreHandle_t xI2C2BusMutex = NULL;
 
 // Functions for initializing tasks
 extern void vSensorTaskSetup( void );
@@ -154,9 +153,8 @@ int main( void )
     xI2C0BMISemaphore = xSemaphoreCreateBinary();
     // Mutex for I2C
     xI2C0Mutex = xSemaphoreCreateMutex();
-    xI2C2BusMutex = xSemaphoreCreateMutex();
 
-    if ( (xI2C0OPTSemaphore != NULL) && (xI2C0BMISemaphore != NULL) && (xI2C0Mutex != NULL) && (xI2C2BusMutex != NULL) )
+    if ( (xI2C0OPTSemaphore != NULL) && (xI2C0BMISemaphore != NULL) && (xI2C0Mutex != NULL) )
     {
 
     /* Configure the queue task. */

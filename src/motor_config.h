@@ -31,12 +31,8 @@
 SemaphoreHandle_t xADC1_Semaphore;
 QueueHandle_t xRPMQueueInternal;
 QueueHandle_t xRPMQueueExternal;
-QueueHandle_t xCurrentQueueInternal;
 QueueHandle_t xCurrentQueueExternal;
-QueueHandle_t xPowerQueueInternal;
 QueueHandle_t xPowerQueueExternal;
-QueueHandle_t xOPT3001Queue;
-QueueHandle_t xBMI160Queue;
 
 typedef struct 
 {
@@ -53,17 +49,6 @@ typedef struct
 {
     uint32_t value; // Unsigned
 } PowerQueueData;
-
-// Structs for Sensor Data Publishing
-typedef struct 
-{
-    uint32_t ulfilteredLux;
-} OPT3001Message;
-
-typedef struct
-{
-    int32_t ulfilteredAccel;
-} BMI160Message;
 
 #ifndef MOTOR_STATE_H
 #define MOTOR_STATE_H
