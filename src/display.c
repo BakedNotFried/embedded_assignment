@@ -1160,10 +1160,22 @@ void vQueueTask( void )
     xOPT3001Queue = xQueueCreate(1, sizeof(struct OPT3001Message));
     xBMI160Queue = xQueueCreate(1, sizeof(struct BMI160Message));
 
+    if (xOPT3001Queue == NULL || xBMI160Queue == NULL)
+    {
+        UARTprintf("Error creating Sensor Queues\n");
+        return 0;
+    }
+
     // Create semaphores for sensor tasks
     xI2CConfigSemaphore = xSemaphoreCreateBinary();
     xOPT3001ReadSemaphore = xSemaphoreCreateBinary();
     xBMI160ReadSemaphore = xSemaphoreCreateBinary();
+
+    if (xI2CConfigSemaphore == NULL || xOPT3001ReadSemaphore == NULL || xBMI160ReadSemaphore == NULL)
+    {
+        UARTprintf("Error creating Sensor Semaphores\n");
+        return 0;
+    }
 
     // Sensor Tasks
     // Create the task to read the optical sensor
