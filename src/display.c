@@ -195,7 +195,11 @@ bool SensorData = false;
 bool SensorPlot = false;
 bool dayChange = 1;
 bool nightChange = 1;
-int count = 0;
+int countspeed = 0;
+int countpower = 0;
+int countlux = 0;
+int countacc = 0;
+
 extern tCanvasWidget g_psPanels[];
 tContext sContext;
 tRectangle sRect;
@@ -556,7 +560,8 @@ OnPrevious(tWidget *psWidget)
         case 2:
             MotorData = true;
             MotorPlot = true;
-            count = 0;
+            countspeed = 0;
+            countpower = 0;
             //WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sSliderSpeed);
             WidgetRemove((tWidget *)(&g_sSliderAcc));
             ligthData = false;
@@ -572,7 +577,8 @@ OnPrevious(tWidget *psWidget)
         case 4:
             SensorData = true;
             SensorPlot = true; 
-            count = 0;
+            countlux = 0;
+            countacc = 0;
             break;
         case 5:
 
@@ -686,7 +692,8 @@ OnNext(tWidget *psWidget)
             //WidgetRemove((tWidget *)(&g_sSliderAcc));
             MotorData = true;
             MotorPlot = true;
-            count = 0;
+            countspeed = 0;
+            countpower = 0;
             break;
         case 3:
             MotorPlot = false;
@@ -700,7 +707,8 @@ OnNext(tWidget *psWidget)
             WidgetRemove((tWidget *)(&g_sSliderAcc));
             SensorData = true;
             SensorPlot = true;
-            count = 0;
+            countlux = 0;
+            countacc = 0;
             break;
         case 5:
             
@@ -1288,32 +1296,46 @@ void plotMotor(int speed, int power){
             GrRectDraw(&sContext, &sRect);
         }
 
+        //output = output_start + ((output_end - output_start) / (input_end - input_start)) * (input - input_start)
         speed = 0 + (((speed - 0)*(200 - 0))/(4530-0));
         power = 0 + (((power - 0)*(200 - 0))/(15-0));
+        //speed = 0 + ((200 - 0)/(4530-0)) * (speed - 0);
+        //power = 0 + ((200 - 0)/(15-0)) * (power - 0);
+        //UARTprintf("speed %d power %d\n", speed, power);
         //UARTprintf("Data: %5d\n", data);
-        if(speed <= 200)
+        if(speed <= 200 && speed >= 0)
         {
             
-            GrCircleDraw(&sContext, 15 + count,180-speed,1);
-            GrCircleDraw(&sContext, 165 + count,180-power,1);
-            count = count + 2;
-            if((count+15) >= 150)
+            GrCircleDraw(&sContext, 15+countspeed,178-speed,1);
+            //UARTprintf("count speed %d\n", countspeed);
+            countspeed = countspeed + 2;
+            if((countspeed+15) >= 150)
             {
-                count = 0;
                 sRect.i16XMin = 12;
                 sRect.i16YMin = 50;
                 sRect.i16XMax = 150;
                 sRect.i16YMax = 180;
                 GrContextForegroundSet(&sContext, ClrBlack);
                 GrRectFill(&sContext, &sRect);  
-
+                countspeed = 0;
+                //UARTprintf("Speed forfra %d\n", countspeed);
+            }
+        }
+        if(power <= 200 && power >= 0)
+        {
+            
+            GrCircleDraw(&sContext, 165+countpower,178-power,1);
+            countpower = countpower + 2;
+            if((countpower+15) >= 150)
+            {
                 sRect.i16XMin = 163;
                 sRect.i16YMin = 50;
                 sRect.i16XMax = 300;
                 sRect.i16YMax = 180;
                 GrContextForegroundSet(&sContext, ClrBlack);
-                GrRectFill(&sContext, &sRect);  
-
+                GrRectFill(&sContext, &sRect);
+                countpower = 0;  
+                //UARTprintf("power forfra %d\n", countpower);
             }
         }
 }
@@ -1372,24 +1394,34 @@ void plotSensor(int lux, int acc){
         }
 
         lux = 0 + (((lux - 0)*(200 - 0))/(2000-0));
-        acc = 0 + (((acc - 0)*(200 - 0))/(2000-0));
+        acc = 0 + (((acc - 0)*(200 - 0))/(2000-250));
+
+        //lux = 0 + ((200 - 0)/(2000-0)) * (speed - 0);
+        //acc = 0 + ((200 - 0)/(2000-200)) * (power - 0);
         //UARTprintf("Data: %5d\n", data);
-        if(lux <= 200)
+        if(lux <= 200 && lux >= 0)
         {
             
-            GrCircleDraw(&sContext, 15 + count,180-lux,1);
-            GrCircleDraw(&sContext, 165 + count,180-acc,1);
-            count = count + 2;
-            if((count+15) >= 150)
+            GrCircleDraw(&sContext, 15 + countlux,178-lux,1);
+            countlux = countlux + 2;
+            if((countlux+15) >= 150)
             {
-                count = 0;
+                countlux = 0;
                 sRect.i16XMin = 12;
                 sRect.i16YMin = 50;
                 sRect.i16XMax = 150;
                 sRect.i16YMax = 180;
                 GrContextForegroundSet(&sContext, ClrBlack);
                 GrRectFill(&sContext, &sRect);  
-
+            }
+        }
+        if(acc <= 200 && acc >= 0)
+        {
+            GrCircleDraw(&sContext, 165 + countacc,178-acc,1);
+            countacc = countacc + 2;
+            if((countacc+15) >= 150)
+            {
+                countacc = 0;
                 sRect.i16XMin = 163;
                 sRect.i16YMin = 50;
                 sRect.i16XMax = 300;
@@ -1531,8 +1563,27 @@ void plotDay(void){
 static void prvDisplay( void *pvParameters )
 {       
 
+
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
+
+    //
+    // Check if the peripheral access is enabled.
+    //
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_GPION))
+    {
+    }
+
+    //
+    // Enable the GPIO pin for the LED (PN0).  Set the direction as output, and
+    // enable the GPIO pin for digital function.
+    // Like pinMode
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_0);
+
+
     RPMQueueData xRPMvalueRecv;
     PowerQueueData xPowervalueRecv;
+    struct BMI160Message xBMI160Message;
+    struct OPT3001Message xOPT3001Message;
 
     sRect.i16XMin = 0;
     sRect.i16YMin = 0;
@@ -1552,7 +1603,6 @@ static void prvDisplay( void *pvParameters )
     GrContextFontSet(&sContext, &g_sFontCm20);
     GrStringDraw(&sContext, "30/05/24", -1, 240, 2, 0);
     OnIntroPaint();
-
     bool clockSec = 1;
     struct AData xReadSpeed;
     struct AData xReadPower;
@@ -1613,52 +1663,54 @@ static void prvDisplay( void *pvParameters )
     
         }
 
+        //RPM and Power plotting 
         if((xQueueReceive(xRPMQueueExternal, &(xRPMvalueRecv), 0) == pdPASS) || (xQueueReceive(xPowerQueueExternal, &(xPowervalueRecv), ( TickType_t ) 0) == pdPASS))       
         {
-            UARTprintf("power: %u\n", xPowervalueRecv.value);
-            if(((xPowervalueRecv.value <= limitLow) || (xPowervalueRecv.value >= limitHigh)) && motorState)
+            //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
+            //UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
+            // UARTprintf("power: %u\n", xPowervalueRecv.value);
+            if(((xPowervalueRecv.value/1000 <= limitLow) || (xPowervalueRecv.value/1000 >= limitHigh)) && motorState)
             {
-                EXTERNAL_SET_ESTOP();
-            }
+                //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
+                 EXTERNAL_SET_ESTOP();
+            } 
 
-            if(MotorPlot)
+            if(MotorPlot && motorState)
             {
-                //UARTprintf("power: %u\n", xPowervalueRecv.value);
+                //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
                 //UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
                 plotMotor(xRPMvalueRecv.value, xPowervalueRecv.value/1000);
 
             }
         }
 
-        if(SensorPlot)
+        //Checking opt and acc
+        if((xQueueReceive( xOPT3001Queue, &( xOPT3001Message ), ( TickType_t ) 10 ) == pdPASS) || (xQueueReceive( xBMI160Queue, &( xBMI160Message), ( TickType_t ) 10 ) == pdPASS))
         {
-            if((xQueueReceive( xOptAverageQueue, &( xReadSpeed ), ( TickType_t ) 10 ) == pdPASS) || (xQueueReceive( xOptDataQueue, &( xReadPower ), ( TickType_t ) 10 ) == pdPASS))
+            //UARTprintf(">Lux:%d\n", xOPT3001Message.filteredLux);
+            //UARTprintf(">Acc:%d\n", xBMI160Message.ulfilteredAccel);
+
+            if(xOPT3001Message.filteredLux <= 5)
             {
-                plotSensor(xReadSpeed.ulSamples, xReadPower.ulSamples);
-            }
-        }
-
-
-            //int oldVal = 0;
-        if((xQueueReceive( xOptAverageQueue, &( xReadSpeed ), ( TickType_t ) 10 ) == pdPASS))
-        {
-
-            if(xReadSpeed.ulSamples <= 5)
-            {
-                LEDWrite(LED_D2 , true);
+                GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, GPIO_PIN_0);
             }else{
-                LEDWrite(LED_D2 , false);
+                GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, 0x0);
             }
 
+
+            if(SensorPlot)
+            {
+                plotSensor(xOPT3001Message.filteredLux, xBMI160Message.ulfilteredAccel);
+            }
             if(ligthData)
             {
-                if(xReadSpeed.ulSamples <=  5 && dayChange)
+                if(xOPT3001Message.filteredLux <=  5 && dayChange)
                 {
                     dayChange = 0;
                     nightChange = 1;
                     plotNight();
                 }
-                if(xReadSpeed.ulSamples >  5 && nightChange)
+                if(xOPT3001Message.filteredLux >  5 && nightChange)
                 {
                     nightChange = 0;
                     dayChange = 1;
@@ -1701,7 +1753,7 @@ static void prvMotorTask( void *pvParameters )
 
     for (;;)
     {
-        UARTprintf("STATE: %d \n", motor_state.current_state);
+        //UARTprintf("STATE: %d \n", motor_state.current_state);
 
         vTaskDelay(pdMS_TO_TICKS(500));
         if (1){
@@ -1837,9 +1889,13 @@ static void vCurrentRead( void *pvParameters )
         //UARTprintf("power2: %d \n", power/1000);
         // Send the current and power value to the queue
         xCurrentvalueSend.value = current;
-        xPowervalueSend.value = power/1000;
+        xPowervalueSend.value = power;
         xQueueSend(xCurrentQueueExternal, &xCurrentvalueSend, 0);
-        xQueueSend(xPowerQueueExternal, ( void * ) &xPowervalueSend, ( TickType_t ) 0);
+        if(power/1000 <= 15)
+        {
+            xQueueSend(xPowerQueueExternal, ( void * ) &xPowervalueSend, ( TickType_t ) 0);
+            //UARTprintf(">Power%d\n", power);
+        }
     }
 }
 
@@ -1887,7 +1943,7 @@ void vRPMRead( void *pvParameters )
         xRPMvalueSend.value = rpm_filtered;
         xRPMvalueSend.ticks = 0;
         xQueueSend(xRPMQueueExternal, &xRPMvalueSend, 0);
-
+        //UARTprintf(">RPM%d\n", rpm_filtered);
         // Delay for 100Hz
         vTaskDelay(pdMS_TO_TICKS( 10 ));
     }
@@ -2006,7 +2062,7 @@ static void xBMI160Read( void *pvParameters )
                 xSemaphoreGive( xI2C0Mutex );
             }
 
-            if (success)
+            if(success)
             {
                 // Combine X,Y,Z and get magnitude
                 int32_t accel = (int32_t)sqrt((int32_t)int_x*(int32_t)int_x + (int32_t)int_y*(int32_t)int_y + (int32_t)int_z*(int32_t)int_z);
@@ -2026,7 +2082,7 @@ static void xBMI160Read( void *pvParameters )
                 xQueueSend(xBMI160Queue, &xBMI160Message, 0 );
 
                 // DEBUG
-                UARTprintf(">Accel:%d\n", filtered_accel);
+                //UARTprintf(">Accel:%d\n", filtered_accel);
             }
         }
     }
@@ -2087,7 +2143,7 @@ static void vOPT3001Read( void *pvParameters )
                 xQueueSend(xOPT3001Queue, &xOPT3001Message, 0);
 
                 // DEBUG
-                UARTprintf(">Lux:%d\n", filtered_lux);
+                //UARTprintf(">Lux:%d\n", filtered_lux);
             }
         }
     }
@@ -2470,5 +2526,4 @@ static void prvConfigureOPT3001Sensor( void )
 void vApplicationTickHook( void )
 {
 }
-
 
