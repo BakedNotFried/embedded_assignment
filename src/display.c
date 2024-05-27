@@ -1245,7 +1245,7 @@ void xTimer1IntHandler(void) {
 
 
 
-void plotMotor(int speed, int power){
+void plotMotorSpeed(int speed){
 
 
         if(MotorData)
@@ -1253,10 +1253,7 @@ void plotMotor(int speed, int power){
             GrContextFontSet(&sContext, &g_sFontCm20);
             GrContextForegroundSet(&sContext, ClrWhite);
             GrStringDraw(&sContext, "Speed (rpm):", -1, 35, 25, 0);
-
-            GrContextForegroundSet(&sContext, ClrWhite);
-            GrStringDraw(&sContext, "Power (watts):", -1, 180, 25, 0);
-            MotorData = false;
+            //MotorData = false;
             //Plot for speed
             sRect.i16XMin = 10;
             sRect.i16YMin = 50;
@@ -1275,30 +1272,10 @@ void plotMotor(int speed, int power){
             GrRectFill(&sContext, &sRect);    
             GrContextForegroundSet(&sContext, ClrWhite);
             GrRectDraw(&sContext, &sRect);
-
-            //PLot for power
-            sRect.i16XMin = 160;
-            sRect.i16YMin = 50;
-            sRect.i16XMax = 161;
-            sRect.i16YMax = 180;
-            GrContextForegroundSet(&sContext, ClrGreen);
-            GrRectFill(&sContext, &sRect);
-            GrContextForegroundSet(&sContext, ClrWhite);
-            GrRectDraw(&sContext, &sRect);
-            
-            sRect.i16XMin = 160;
-            sRect.i16YMin = 180;
-            sRect.i16XMax = 299;
-            sRect.i16YMax = 181;
-            GrContextForegroundSet(&sContext, ClrGreen);
-            GrRectFill(&sContext, &sRect);    
-            GrContextForegroundSet(&sContext, ClrWhite);
-            GrRectDraw(&sContext, &sRect);
         }
 
         //output = output_start + ((output_end - output_start) / (input_end - input_start)) * (input - input_start)
         speed = 0 + (((speed - 0)*(200 - 0))/(4530-0));
-        power = 0 + (((power - 0)*(200 - 0))/(15-0));
         //speed = 0 + ((200 - 0)/(4530-0)) * (speed - 0);
         //power = 0 + ((200 - 0)/(15-0)) * (power - 0);
         //UARTprintf("speed %d power %d\n", speed, power);
@@ -1321,28 +1298,11 @@ void plotMotor(int speed, int power){
                 //UARTprintf("Speed forfra %d\n", countspeed);
             }
         }
-        if(power <= 200 && power >= 0)
-        {
-            
-            GrCircleDraw(&sContext, 165+countpower,178-power,1);
-            countpower = countpower + 2;
-            if((countpower+15) >= 150)
-            {
-                sRect.i16XMin = 163;
-                sRect.i16YMin = 50;
-                sRect.i16XMax = 300;
-                sRect.i16YMax = 180;
-                GrContextForegroundSet(&sContext, ClrBlack);
-                GrRectFill(&sContext, &sRect);
-                countpower = 0;  
-                //UARTprintf("power forfra %d\n", countpower);
-            }
-        }
 }
 
 
 
-void plotSensor(int lux, int acc){
+void plotSensorLux(int lux){
 
         if(SensorData)
         {
@@ -1351,9 +1311,7 @@ void plotSensor(int lux, int acc){
             GrContextForegroundSet(&sContext, ClrWhite);
             GrStringDraw(&sContext, "Light (lux):", -1, 35, 25, 0);
 
-            GrContextForegroundSet(&sContext, ClrWhite);
-            GrStringDraw(&sContext, "Acc (whatever):", -1, 180, 25, 0);
-            SensorData = false;
+            //SensorData = false;
             //Plot for speed
             sRect.i16XMin = 10;
             sRect.i16YMin = 50;
@@ -1372,6 +1330,41 @@ void plotSensor(int lux, int acc){
             GrRectFill(&sContext, &sRect);    
             GrContextForegroundSet(&sContext, ClrWhite);
             GrRectDraw(&sContext, &sRect);
+
+        }
+
+        lux = 0 + (((lux - 0)*(200 - 0))/(2000-0));
+        //lux = 0 + ((200 - 0)/(2000-0)) * (speed - 0);
+        //acc = 0 + ((200 - 0)/(2000-200)) * (power - 0);
+        //UARTprintf("Data: %5d\n", data);
+        if(lux <= 200 && lux >= 0)
+        {
+            
+            GrCircleDraw(&sContext, 15 + countlux,178-lux,1);
+            countlux = countlux + 2;
+            if((countlux+15) >= 150)
+            {
+                countlux = 0;
+                sRect.i16XMin = 12;
+                sRect.i16YMin = 50;
+                sRect.i16XMax = 150;
+                sRect.i16YMax = 180;
+                GrContextForegroundSet(&sContext, ClrBlack);
+                GrRectFill(&sContext, &sRect);  
+            }
+        }
+}
+
+
+void plotMotorPower(int power){
+
+
+        if(MotorData)
+        {
+            GrContextFontSet(&sContext, &g_sFontCm20);
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrStringDraw(&sContext, "Power (watts):", -1, 180, 25, 0);
+            MotorData = false;
 
             //PLot for power
             sRect.i16XMin = 160;
@@ -1393,28 +1386,65 @@ void plotSensor(int lux, int acc){
             GrRectDraw(&sContext, &sRect);
         }
 
-        lux = 0 + (((lux - 0)*(200 - 0))/(2000-0));
+        //output = output_start + ((output_end - output_start) / (input_end - input_start)) * (input - input_start)
+        power = 0 + (((power - 0)*(200 - 0))/(15-0));
+        if(power <= 200 && power >= 0)
+        {
+            
+            GrCircleDraw(&sContext, 165+countpower,178-power,1);
+            countpower = countpower + 2;
+            if((countpower+15) >= 150)
+            {
+                sRect.i16XMin = 163;
+                sRect.i16YMin = 50;
+                sRect.i16XMax = 300;
+                sRect.i16YMax = 180;
+                GrContextForegroundSet(&sContext, ClrBlack);
+                GrRectFill(&sContext, &sRect);
+                countpower = 0;  
+                //UARTprintf("power forfra %d\n", countpower);
+            }
+        }
+}
+
+
+
+void plotSensorAcc(int acc){
+
+        if(SensorData)
+        {
+            
+            GrContextFontSet(&sContext, &g_sFontCm20);
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrStringDraw(&sContext, "Acc (whatever):", -1, 180, 25, 0);
+            SensorData = false;
+
+            //PLot for Acc
+            sRect.i16XMin = 160;
+            sRect.i16YMin = 50;
+            sRect.i16XMax = 161;
+            sRect.i16YMax = 180;
+            GrContextForegroundSet(&sContext, ClrGreen);
+            GrRectFill(&sContext, &sRect);
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrRectDraw(&sContext, &sRect);
+            
+            sRect.i16XMin = 160;
+            sRect.i16YMin = 180;
+            sRect.i16XMax = 299;
+            sRect.i16YMax = 181;
+            GrContextForegroundSet(&sContext, ClrGreen);
+            GrRectFill(&sContext, &sRect);    
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrRectDraw(&sContext, &sRect);
+        }
+
         acc = 0 + (((acc - 0)*(200 - 0))/(2000-250));
 
         //lux = 0 + ((200 - 0)/(2000-0)) * (speed - 0);
         //acc = 0 + ((200 - 0)/(2000-200)) * (power - 0);
         //UARTprintf("Data: %5d\n", data);
-        if(lux <= 200 && lux >= 0)
-        {
-            
-            GrCircleDraw(&sContext, 15 + countlux,178-lux,1);
-            countlux = countlux + 2;
-            if((countlux+15) >= 150)
-            {
-                countlux = 0;
-                sRect.i16XMin = 12;
-                sRect.i16YMin = 50;
-                sRect.i16XMax = 150;
-                sRect.i16YMax = 180;
-                GrContextForegroundSet(&sContext, ClrBlack);
-                GrRectFill(&sContext, &sRect);  
-            }
-        }
+
         if(acc <= 200 && acc >= 0)
         {
             GrCircleDraw(&sContext, 165 + countacc,178-acc,1);
@@ -1664,7 +1694,7 @@ static void prvDisplay( void *pvParameters )
         }
 
         //RPM and Power plotting 
-        if((xQueueReceive(xRPMQueueExternal, &(xRPMvalueRecv), 0) == pdPASS) || (xQueueReceive(xPowerQueueExternal, &(xPowervalueRecv), ( TickType_t ) 0) == pdPASS))       
+        if((xQueueReceive(xPowerQueueExternal, &(xPowervalueRecv), ( TickType_t ) 0) == pdPASS))       
         {
             //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
             //UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
@@ -1679,10 +1709,21 @@ static void prvDisplay( void *pvParameters )
             {
                 //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
                 //UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
-                plotMotor(xRPMvalueRecv.value, xPowervalueRecv.value/1000);
+                plotMotor(xPowervalueRecv.value/1000);
 
             }
         }
+        if((xQueueReceive(xRPMQueueExternal, &(xRPMvalueRecv), 0) == pdPASS))       
+        {
+            if(MotorPlot && motorState)
+            {
+                //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
+                //UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
+                plotMotorSpeed(xRPMvalueRecv.value);
+
+            }
+        }
+
 
         //Checking opt and acc
         if((xQueueReceive( xOPT3001Queue, &( xOPT3001Message ), ( TickType_t ) 10 ) == pdPASS) || (xQueueReceive( xBMI160Queue, &( xBMI160Message), ( TickType_t ) 10 ) == pdPASS))
@@ -1700,7 +1741,7 @@ static void prvDisplay( void *pvParameters )
 
             if(SensorPlot)
             {
-                plotSensor(xOPT3001Message.filteredLux, xBMI160Message.ulfilteredAccel);
+                plotSensorLux(xOPT3001Message.filteredLux);
             }
             if(ligthData)
             {
@@ -1719,7 +1760,16 @@ static void prvDisplay( void *pvParameters )
 
             }
         }
-      
+        if((xQueueReceive( xBMI160Queue, &( xBMI160Message), ( TickType_t ) 10 ) == pdPASS))
+        {
+            //UARTprintf(">Lux:%d\n", xOPT3001Message.filteredLux);
+            //UARTprintf(">Acc:%d\n", xBMI160Message.ulfilteredAccel);
+
+            if(SensorPlot)
+            {
+                plotSensorAcc(xBMI160Message.ulfilteredAccel);
+            }
+        }
     }
 }
 
