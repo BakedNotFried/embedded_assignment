@@ -61,6 +61,7 @@ extern void vSensorTaskSetup( void );
 
 // Motor Tings
 extern void vCreateMotorTask( void );
+extern void prvMotorPrint( void );
 extern void ADC1_Sequence1_Handler(void);
 static void prvConfigureHallInts( void );
 static void prvADC1_Init(void) ;
@@ -92,6 +93,7 @@ int main( void )
     if ( (xI2C0OPTSemaphore != NULL) && (xI2C0BMISemaphore != NULL) && (xI2C0Mutex != NULL) && (xI2C2BusMutex != NULL) )
     {
         vCreateMotorTask();
+        
     }
 
     UARTprintf("Input Configuration");  // This is needed to make UART work. Don't Delete (idk wtf is going on here)

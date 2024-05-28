@@ -51,9 +51,12 @@
 /*-----------------------------------------------------------*/
 // Tasks
 static void prvMotorTask( void *pvParameters );
+static void prvMotorTest( void *pvParameters );
+static void prvMotorPrint( void *pvParameters );
 static void vCurrentRead( void *pvParameters );
 static void vRPMRead( void *pvParameters );
 static void vQueueReadTest( void *pvParameters );
+
 
 // Tasks Creator
 void vCreateMotorTask( void );
@@ -133,6 +136,8 @@ volatile bool timerStarted = false;
 volatile uint32_t startTime = 0;
 volatile uint32_t endTime = 0;
 volatile float integral_error = 0;
+uint32_t last_state_change_time = 0;
+uint32_t current_time = 0;
 
 /*----MOTOR API FUNCTIONS--------------------------------------------------*/
 void motorStart(uint16_t rpm){
@@ -208,28 +213,42 @@ void vCreateMotorTask( void )
                  tskIDLE_PRIORITY + 1,
                  NULL );
     
-    xTaskCreate( vCurrentRead,
-                 "Current/Power Read",
-                 configMINIMAL_STACK_SIZE,
-                 NULL,
-                 tskIDLE_PRIORITY + 1,
-                 &vCurrentReadHandle );
+    // xTaskCreate( vCurrentRead,
+    //              "Current/Power Read",
+    //              configMINIMAL_STACK_SIZE,
+    //              NULL,
+    //              tskIDLE_PRIORITY + 1,
+    //              &vCurrentReadHandle );
 
-    xTaskCreate( vRPMRead,
-                 "RPM Read",
-                 configMINIMAL_STACK_SIZE,
-                 NULL,
-                 tskIDLE_PRIORITY + 1,
-                 &vRPMReadHandle );
+    // xTaskCreate( vRPMRead,
+    //              "RPM Read",
+    //              configMINIMAL_STACK_SIZE,
+    //              NULL,
+    //              tskIDLE_PRIORITY + 1,
+    //              &vRPMReadHandle );
 
     // Sensor Tasks
     // Create the task to read the optical sensor
-    xTaskCreate( vOPT3001Read,
-                 "Opt 3001 Read/Pub Task",
-                 configMINIMAL_STACK_SIZE,
-                 NULL,
-                 tskIDLE_PRIORITY + 1,
-                 &xOpt3001ReadHandle);
+    // xTaskCreate( vOPT3001Read,
+    //              "Opt 3001 Read/Pub Task",
+    //              configMINIMAL_STACK_SIZE,
+    //              NULL,
+    //              tskIDLE_PRIORITY + 1,
+    //              &xOpt3001ReadHandle);
+
+    xTaskCreate( prvMotorTest,
+                "motor Test",
+                configMINIMAL_STACK_SIZE,
+                NULL,
+                tskIDLE_PRIORITY + 1,
+                NULL );
+    
+    xTaskCreate( prvMotorPrint,
+                "motor print",
+                configMINIMAL_STACK_SIZE,
+                NULL,
+                tskIDLE_PRIORITY + 1,
+                NULL );
 
     // // Create the task to read the IMU sensor
     // xTaskCreate( xBMI160Read,
@@ -255,19 +274,10 @@ void vCreateMotorTask( void )
 // Motor State Machine
 static void prvMotorTask( void *pvParameters )
 {
+    int zero_rpm_count = 0;
+    int previous_rpm =-1;
     // Testing states
     //####################### FROM HERE TO ----- ##############################
-    motorStart(500);
-
-    vTaskDelay(pdMS_TO_TICKS( 10000 ));
-    UARTprintf("Stop");
-    motorStop(false);
-
-    vTaskDelay(pdMS_TO_TICKS( 10000 ));
-    motorStart(3500);
-
-    vTaskDelay(pdMS_TO_TICKS( 10000 ));
-    motor_state.Estop_condition = Enabled;
 
     //######################## ---- HERE IS TESTED  ######################################## 
     //####################### BELOW STATE MACHINE IS NOT TESTED ############################
@@ -276,65 +286,140 @@ static void prvMotorTask( void *pvParameters )
     // TODO: Test State Machine
     // Uncommented tested zone above and set if() to true.
     // USE EXTERNAL_SET_RPM and EXTERNAL_SET_ESTOP only to test state machine. all state should be handled internally.
-
+        UARTprintf("State Machine Loop \n");
     for (;;)
     {
-        UARTprintf("STATE: %d \n", motor_state.current_state);
+        //UARTprintf("STATE: %d \n", motor_state.current_state);
+        //UARTprintf("RPM CURRENT: %d \n", motor_state.current_rpm);
 
-        vTaskDelay(pdMS_TO_TICKS(500));
-        if (0){
-            //switch on the internal state. 
-            // check conditions on external API state.
-            switch(motor_state.current_state){
-                case Idle:
-                    if ( motor_state_external.set_rpm > 0){
-                        //set the internal state to our external setpoint 
-                        motorStart(motor_state_external.set_rpm);
-                        // go to starting state
-                        motor_state.current_state = Starting;
-                    }
-                    if (motor_state_external.set_rpm == 0){
-                        //soft brake to 0 rpm
-                        motorStop(false);
-                    }
-                    break;
 
-                case Starting:
-                    // if we hit Estop during start go to EStop
-                    if (motor_state_external.Estop_condition == Enabled){
-                        setMotorEstop();
-                        motor_state.current_state = EStop;
-                    }
-                    // if our external API set point is within 10 percent of the internal rpm go to running
-                    if (motor_state_external.set_rpm > motor_state.current_rpm *0.9 ||  motor_state_external.set_rpm < motor_state.current_rpm * 1.1  ){
-                        motor_state.current_state = Running;
-                    }
-                    break;
+        vTaskDelay(pdMS_TO_TICKS(10));
+        if (1) {
+        // Get the current time in milliseconds
+        current_time += 10;
 
-                case Running:
-                    // we are already at set RPM but Estop is true
-                    if (motor_state_external.Estop_condition == Enabled){
-                        setMotorEstop();
-                        motor_state.current_state = EStop;
-                    }
-                    // we have set current RPM to 0 go IDLE
-                    if (motor_state.current_rpm == 0){
-                        motorStop(false);
-                        motor_state.current_state = Idle;
-                    }else{
-                        //we are free to set the RPM with external API
-                        motor_state.set_rpm = motor_state_external.set_rpm;
-                    }
+        // Calculate the time spent in the current state
+        uint32_t time_in_state = current_time - last_state_change_time;
 
-                    break;
-                case EStop:
-                    //wait until we have safely stoppped. then go to IDLE
-                    if (motor_state.current_rpm == 0){
-                        motor_state.current_state = Idle;
-                    }     
-                    break;       
+        // Check conditions on external API state
+        switch (motor_state.current_state) {
+            case Idle:
+                if (motor_state_external.set_rpm > 0) {
+
+                    // Print time in Idle state
+                    UARTprintf("Idle state duration: %d ms\n", time_in_state);
+
+                    // Set the internal state to our external setpoint
+                    motorStart(motor_state_external.set_rpm);
+                    // Go to starting state
+                    motor_state.current_state = Starting;
+                    last_state_change_time = current_time;
                 }
+                if (motor_state_external.set_rpm == 0) {
+                    // Soft brake to 0 rpm
+                    motorStop(false);
+                }
+                break;
+
+            case Starting:
+                // If we hit Estop during start go to EStop
+                if (motor_state_external.Estop_condition == Enabled) { // Assuming Enabled is 1
+                    setMotorEstop();
+                    motor_state.current_state = EStop;
+                    last_state_change_time = current_time;
+                }
+                // If our external API set point is within 10 percent of the internal rpm go to running
+                if (motor_state_external.set_rpm > motor_state.current_rpm * 0.9 &&
+                    motor_state_external.set_rpm < motor_state.current_rpm * 1.1) {
+                    // Print time in Starting state
+                    UARTprintf("Starting state duration: %d ms\n", time_in_state);
+
+                    motor_state.current_state = Running;
+                    last_state_change_time = current_time;
+                }
+                break;
+
+            case Running:
+                // We are already at set RPM but Estop is true
+                if (motor_state_external.Estop_condition == Enabled) { // Assuming Enabled is 1
+                    setMotorEstop();
+                    motor_state.current_state = EStop;
+                    last_state_change_time = current_time;
+                }
+                // We have set current RPM to 0 go IDLE
+                if (motor_state.current_rpm < 80 && motor_state.set_rpm == 0) {
+                    // Print time in Running state
+                    UARTprintf("Running state duration: %d ms\n", time_in_state);
+
+                    motorStop(false);
+                    motor_state.current_state = Idle;
+                    last_state_change_time = current_time;
+                } else {
+                    // We are free to set the RPM with external API
+                    motor_state.set_rpm = motor_state_external.set_rpm;
+                }
+
+                //the motor froze so restart
+                if (motor_state.current_rpm == previous_rpm && motor_state.current_rpm < 100) {
+                    UARTprintf("Increment Zero count: %d \n", zero_rpm_count);
+                    zero_rpm_count++;
+                }
+                if (zero_rpm_count > 15){
+                    UARTprintf("Go IDLE \n");
+                    zero_rpm_count = 0;
+                    motor_state.current_state = Idle;
+                }
+                break;
+
+            case EStop:
+                // Wait until we have safely stopped, then go to IDLE
+                if (motor_state.set_rpm == 0 && motor_state.current_rpm == previous_rpm) {
+                    UARTprintf("Increment Zero count: %d \n", zero_rpm_count);
+                    zero_rpm_count++;
+                }
+
+                if (motor_state.set_rpm == 0 && zero_rpm_count > 15) {
+                    // Print time in EStop state
+                    UARTprintf("EStop state duration: %d ms\n", time_in_state);
+
+                    UARTprintf("Go IDLE \n");
+                    zero_rpm_count = 0;
+                    motor_state.current_state = Idle;
+                    last_state_change_time = current_time;
+                }
+                break;
+            }
+
+            previous_rpm = motor_state.current_rpm;
         }
+    }
+}
+
+
+static void prvMotorTest( void *pvParameters )
+{
+
+    UARTprintf("Start");
+    vTaskDelay(pdMS_TO_TICKS( 15000 ));
+    EXTERNAL_SET_RPM(0);
+    vTaskDelay(pdMS_TO_TICKS( 15000 ));
+    EXTERNAL_SET_RPM(1200);
+    vTaskDelay(pdMS_TO_TICKS( 15000 ));
+    UARTprintf("Stop");
+    EXTERNAL_SET_ESTOP();
+    vTaskDelay(pdMS_TO_TICKS( 15000 ));
+    EXTERNAL_SET_RPM(1200);
+    vTaskDelay(pdMS_TO_TICKS( 15000 ));
+}
+
+static void prvMotorPrint( void *pvParameters ){
+    while (1){
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        UARTprintf("STATE: %d \n", motor_state.current_state);
+        UARTprintf("RPM NOW: %d \n", motor_state.current_rpm);
+        UARTprintf("RPM SET: %d \n", motor_state.set_rpm);
+        UARTprintf("Controller OUTPUT: %d \n", (int)motor_state.controller_ouput);
+        UARTprintf("Controller ERROR: %d \n", (int)motor_state.controller_error*1000);
     }
 }
 /*-----------------------------------------------------------*/
@@ -709,6 +794,7 @@ void Timer4IntHandler(void) {
 
         // Update integral error
         integral_error += error * TIMER_INTERVAL; // Multiply by dt if available
+        motor_state.controller_error = integral_error;
 
         // Calculate PID output (scaled appropriately)
         float output = Kp * error + Ki * integral_error;
@@ -824,6 +910,8 @@ void initMotorState(MotorState *motor_state){
     motor_state->Estop_condition = Disabled;
     motor_state->set_rpm = 0;
     motor_state->current_rpm = 0;
+    motor_state->controller_error = 0;
+    motor_state->controller_ouput = 0;
 }
 
 void MotorRPMTimerStart() {
@@ -847,7 +935,7 @@ void setMotorRPM(uint16_t rpm){
 
 void setMotorEstop(){
     motor_state.Estop_condition = Enabled;
-    motor_state.set_rpm = 10;
+    motor_state.set_rpm = 0;
 }
 
 /*########################EXTERNAL MOTOR CONTROL API##############################################################*/
@@ -870,6 +958,7 @@ void EXTERNAL_SET_ESTOP(){
     //TODO: ADD MUTEX
     // 
     motor_state_external.Estop_condition = Enabled;
+    motor_state_external.set_rpm = 0;
 }
 
 /*#################################################################################################################*/
