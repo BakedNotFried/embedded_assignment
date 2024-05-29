@@ -82,28 +82,11 @@
 
 // BMI include
 #include "drivers/i2cBMIDriver.h"
-#include "drivers/bmi160.h"
-#include "drivers/bmi160_defs.h"
 
 //required for motor
 #include <stdlib.h>  
 
-#define DIGITS_AFTER_DP 10
 /*-----------------------------------------------------------*/
-
-/*
- * Define the task IDs.
- */
-#define TASK1_ID 0
-#define TASK2_ID 1
-#define TASK3_ID 2
-#define TASK4_ID 3
-
-/*
- * Priorities at which the tasks are created.
- */
-#define mainQUEUE_RECEIVE_TASK_PRIORITY     ( tskIDLE_PRIORITY + 2 )
-#define mainQUEUE_SEND_TASK_PRIORITY        ( tskIDLE_PRIORITY + 1 )
 
 /*
  * The number of items the queue can hold.  This is 4 as the receive task
@@ -232,13 +215,13 @@ static void prvDisplay( void *pvParameters );
 static void prvMotorTask( void *pvParameters );
 static void vCurrentRead( void *pvParameters );
 static void vRPMRead( void *pvParameters );
-static void prvMotorPrint( void *pvParameters );
-static void prvWatchdogTask( void *pvParameters );
-static void prvPID( void *pvParameters );
-static void prvMotorRun( void *pvParameters );
+// static void prvMotorPrint( void *pvParameters );
+// static void prvWatchdogTask( void *pvParameters );
+// static void prvPID( void *pvParameters );
+// static void prvMotorRun( void *pvParameters );
 //static void vQueueReadTest( void *pvParameters );
 
-void movingAverageFilter(float *newReading, float *average);
+// void movingAverageFilter(float *newReading, float *average);
 
 
 
@@ -1025,19 +1008,20 @@ void vQueueTask( void )
         SYSCTL_OSC_MAIN | SYSCTL_USE_PLL |
         SYSCTL_CFG_VCO_240), configCPU_CLOCK_HZ);
 
-        /* Attempt to create the event group. */
-    task_Event = xEventGroupCreate();
+    //     /* Attempt to create the event group. */
+    // task_Event = xEventGroupCreate();
 
-    /* Was the event group created successfully? */
-    if(task_Event == NULL )
-    {
-        /* The event group was not created because there was insufficient
-        FreeRTOS heap available. */
-    }
-    else
-    {
-        /* The event group was created. */
-    }
+    // /* Was the event group created successfully? */
+    // if(task_Event == NULL )
+    // {
+    //     /* The event group was not created because there was insufficient
+    //     FreeRTOS heap available. */
+    //     UARTprintf("Event group creation failed\n");
+    // }
+    // else
+    // {
+    //     /* The event group was created. */
+    // }
     FPUEnable();
     FPULazyStackingEnable();
 
@@ -1111,48 +1095,6 @@ void vQueueTask( void )
     //
     MAP_TimerEnable(TIMER1_BASE, TIMER_A);
 
-
-
-
-    xOptSemaphore = xSemaphoreCreateBinary();
-    /* Create the queue used to send complete struct AMessage structures.  This can
-    also be created after the schedule starts, but care must be task to ensure
-    nothing uses the queue until after it has been created. */
-    xStructQueue = xQueueCreate(
-                          /* The number of items the queue can hold. */
-                          mainQUEUE_LENGTH,
-                          /* Size of each item is big enough to hold the
-                          whole structure. */
-                          sizeof( xMessage ) );
-
-    /* Create the queue used to send pointers to struct AMessage structures. */
-    xPointerQueue = xQueueCreate(
-                          /* The number of items the queue can hold. */
-                          mainQUEUE_LENGTH,
-                          /* Size of each item is big enough to hold only a
-                          pointer. */
-                          sizeof( &xMessage ) );
-
-    xOptDataQueue = xQueueCreate(
-                          /* The number of items the queue can hold. */
-                          mainDataQUEUE_LENGTH,
-                          /* Size of each item is big enough to hold the
-                          whole structure. */
-                          sizeof( xData ) );
-
-    xOptAverageQueue = xQueueCreate(
-                          /* The number of items the queue can hold. */
-                          mainDataQUEUE_LENGTH,
-                          /* Size of each item is big enough to hold the
-                          whole structure. */
-                          sizeof( xData ) );
-
-
-    if( ( xStructQueue == NULL ) || ( xPointerQueue == NULL ) || (xOptDataQueue == NULL) || (xOptAverageQueue == NULL) )
-    {
-
-    }
-
 /*-----------------------------------------------------------------------------------*/
 //MOTOR STUFF
     xRPMQueueInternal = xQueueCreate(1, sizeof( xRPMvalue ) );
@@ -1201,8 +1143,8 @@ void vQueueTask( void )
     xI2CConfigSemaphore = xSemaphoreCreateBinary();
     xOPT3001ReadSemaphore = xSemaphoreCreateBinary();
     xBMI160ReadSemaphore = xSemaphoreCreateBinary();
-    xMotorRunSemaphore = xSemaphoreCreateBinary();
-    xPIDControllerSemaphore = xSemaphoreCreateBinary();
+    // xMotorRunSemaphore = xSemaphoreCreateBinary();
+    // xPIDControllerSemaphore = xSemaphoreCreateBinary();
 
     if (xI2CConfigSemaphore == NULL || xOPT3001ReadSemaphore == NULL || xBMI160ReadSemaphore == NULL)
     {
@@ -1237,15 +1179,6 @@ void vQueueTask( void )
 //MOTOR STUFF END
 /*-----------------------------------------------------------------------------------*/
    
-   
-
-   
-//    xTaskCreate(prvOpt,
-//                 "Opt",
-//                 configMINIMAL_STACK_SIZE,
-//                 NULL,
-//                 mainQUEUE_RECEIVE_TASK_PRIORITY,
-//                 NULL );
 
     xTaskCreate(prvDisplay,
                 "Display",
@@ -1973,7 +1906,7 @@ static void prvDisplay( void *pvParameters )
             //Checking opt and acc
             if((xQueueReceive( xOPT3001Queue, &( xOPT3001Message ), ( TickType_t ) 0 ) == pdPASS))
             {
-                UARTprintf("Lux recieve:%d\n", xOPT3001Message.filteredLux);
+                // UARTprintf("Lux recieve:%d\n", xOPT3001Message.filteredLux);
                 //UARTprintf(">Acc:%d\n", xBMI160Message.ulfilteredAccel);
 
                 if(xOPT3001Message.filteredLux <= 5)
@@ -2091,7 +2024,7 @@ static void prvMotorTask( void *pvParameters )
     for (;;)
     {
         //UARTprintf("TEsting\n");
-        motorTaskAliveFlag++;
+        // motorTaskAliveFlag++;
         //UARTprintf("STATE: %d \n", motor_state.current_state);
         //UARTprintf("RPM CURRENT: %d \n", motor_state.current_rpm);
 
@@ -2245,53 +2178,62 @@ static void vCurrentRead( void *pvParameters )
     for( ;; )
     {
         // Wait for the notification from the HW Timer 3A interrupt
-        ulTaskNotifyTake( pdTRUE, portMAX_DELAY );
-
-        // Read the current sensor
-        ADC1_Read(&biased_current_C, &biased_current_B);
-
-        // Unbias and abs
-        current_C = bias - biased_current_C;
-        current_B = bias - biased_current_B;
-        current_C = abs(current_C);
-        current_B = abs(current_B);
-
-        // // Filter values
-        current_C_array[index_C] = current_C;
-        current_B_array[index_B] = current_B;
-        index_C = (index_C + 1) % arr_len;
-        index_B = (index_B + 1) % arr_len;
-        sum_C = 0;
-        sum_B = 0;
-        for (int i = 0; i < arr_len; i++) {
-            sum_C += current_C_array[i];
-            sum_B += current_B_array[i];
-        }
-        current_C_filtered = sum_C / arr_len;
-        current_B_filtered = sum_B / arr_len;
-
-        // Estimate the current on the A coil
-        current_A = (current_C_filtered + current_B_filtered) / 2;
-
-        // Total current
-        current = current_A + current_C_filtered + current_B_filtered;
-
-        // Scale Current to mA
-        current = current / 0.07;
-        current *= 1000;
-        current /= 4096;
-
-        // Calculate power -> P = V * I
-        power = current * (24 - 3.3);
-        //UARTprintf("power2: %d \n", power/1000);
-        // Send the current and power value to the queue
-        xCurrentvalueSend.value = current;
-        xPowervalueSend.value = power;
-        xQueueSend(xCurrentQueueExternal, &xCurrentvalueSend, 0);
-        if(power/1000 <= 15)
+        if (ulTaskNotifyTake( pdTRUE, portMAX_DELAY ) == pdPASS)
         {
-            xQueueSend(xPowerQueueExternal, ( void * ) &xPowervalueSend, ( TickType_t ) 0);
-            //UARTprintf(">Power%d\n", power);
+
+            // Read the current sensor
+            ADC1_Read(&biased_current_C, &biased_current_B);
+
+            // Unbias and abs
+            current_C = bias - biased_current_C;
+            current_B = bias - biased_current_B;
+            current_C = abs(current_C);
+            current_B = abs(current_B);
+
+            // // Filter values
+            current_C_array[index_C] = current_C;
+            current_B_array[index_B] = current_B;
+            index_C = (index_C + 1) % arr_len;
+            index_B = (index_B + 1) % arr_len;
+            sum_C = 0;
+            sum_B = 0;
+            for (int i = 0; i < arr_len; i++) {
+                sum_C += current_C_array[i];
+                sum_B += current_B_array[i];
+            }
+            current_C_filtered = sum_C / arr_len;
+            current_B_filtered = sum_B / arr_len;
+
+            // Estimate the current on the A coil
+            current_A = (current_C_filtered + current_B_filtered) / 2;
+
+            // Total current
+            current = current_A + current_C_filtered + current_B_filtered;
+
+            // Scale Current to mA
+            current = current / 0.07;
+            current *= 1000;
+            current /= 4096;
+
+            // Calculate power -> P = V * I
+            power = current * (24);
+            //UARTprintf("power2: %d \n", power/1000);
+            // Send the current and power value to the queue
+            xCurrentvalueSend.value = current;
+            xPowervalueSend.value = power;
+            if ((xQueueSend(xCurrentQueueExternal, &xCurrentvalueSend, 0)) != pdPASS)
+            {
+                UARTprintf("Current Queue send error\n");
+            }
+            if(power/1000 <= 15)
+            {
+                xQueueSend(xPowerQueueExternal, &xPowervalueSend, 0);
+                //UARTprintf(">Power%d\n", power);
+            }
+        }
+        else
+        {
+            UARTprintf("Notification Error current task\n");
         }
     }
 }
@@ -2343,7 +2285,10 @@ void vRPMRead( void *pvParameters )
         // Send the filtered RPM value to the queue
         xRPMvalueSend.value = rpm_filtered;
         xRPMvalueSend.ticks = 0;
-        xQueueSend(xRPMQueueExternal, &xRPMvalueSend, 0);
+        if (xQueueSend(xRPMQueueExternal, &xRPMvalueSend, 0)) != pdPASS)
+        {
+            UARTprintf("RPM Queue send error\n");
+        }
         //UARTprintf(">RPM_fitleret%d\n", rpm_filtered);
         // Delay for 100Hz
         vTaskDelay(pdMS_TO_TICKS( 10 ));
@@ -2406,7 +2351,10 @@ void vRPMRead( void *pvParameters )
 static void xBMI160Read( void *pvParameters )
 {
     // Wait for the I2C configuration semaphore
-    xSemaphoreTake(xI2CConfigSemaphore, portMAX_DELAY);
+    if ((xSemaphoreTake(xI2CConfigSemaphore, portMAX_DELAY)) != pdTRUE)
+    {
+        UARTprintf("I2C Config Semaphore Error\n");
+    }
 
     // Configure Timer 6A
     prvConfigureHWTimer6A();
@@ -2481,7 +2429,10 @@ static void xBMI160Read( void *pvParameters )
 
                 // // Publish to Queue
                 xBMI160Message.ulfilteredAccel = filtered_accel;
-                xQueueSend(xBMI160Queue, &xBMI160Message, 0 );
+                if ((xQueueSend(xBMI160Queue, &xBMI160Message, 0 )) != pdPASS)
+                {
+                    UARTprintf("BMI160 Queue send error\n");
+                }
 
                 // DEBUG
                 //UARTprintf(">Accel:%d\n", filtered_accel);
@@ -2545,7 +2496,10 @@ static void vOPT3001Read( void *pvParameters )
 
                 // Publish to Queue
                 xOPT3001Message.filteredLux = filtered_lux;
-                xQueueSend(xOPT3001Queue, &xOPT3001Message, 0);
+                if (xQueueSend(xOPT3001Queue, &xOPT3001Message, 0) != pdPASS)
+                {
+                    UARTprintf("OPT3001 Queue send error\n");
+                }
 
                 // DEBUG
                 UARTprintf(">Lux:%d\n", filtered_lux);
