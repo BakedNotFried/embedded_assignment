@@ -253,12 +253,12 @@ void OnNext(tWidget *psWidget);
 void OnIntroPaint(void);
 void MotorOnOff( void );
 void MotorSpeed(void);
-void MotorLimitLow(void);
+//void MotorLimitLow(void);
 void MotorLimitHigh(void);
 void MotorLimitAcc(void);
 void OnButtonPress(tWidget *psWidget);
 void OnSliderSpeed(tWidget *psWidget, int32_t i32Value);
-void OnSliderLimitLow(tWidget *psWidget, int32_t i32Value);
+//void OnSliderLimitLow(tWidget *psWidget, int32_t i32Value);
 void OnSliderLimitHigh(tWidget *psWidget, int32_t i32Value);
 void OnSliderLimitAcc(tWidget *psWidget, int32_t i32Value);
 
@@ -325,12 +325,12 @@ RectangularButton(g_sNext, 0, 0, 0, &g_sKentec320x240x16_SSD2119, 270, 190,
                  ClrGray, ClrBlack, ClrSilver, ClrWhite, ClrWhite,
                  &g_sFontCm20, "500", 0, 0, OnSliderSpeed);
 
-    Slider(g_sSliderLimitsLow, 0, 0, 0,
-                 &g_sKentec320x240x16_SSD2119, 180, 100, 110, 30, 0, 15, 0,
-                  (SL_STYLE_FILL | SL_STYLE_BACKG_FILL | SL_STYLE_OUTLINE |
-                  SL_STYLE_TEXT | SL_STYLE_BACKG_TEXT),
-                 ClrGray, ClrBlack, ClrSilver, ClrWhite, ClrWhite,
-                 &g_sFontCm20, "0", 0, 0, OnSliderLimitLow);
+    // Slider(g_sSliderLimitsLow, 0, 0, 0,
+    //              &g_sKentec320x240x16_SSD2119, 180, 100, 110, 30, 0, 15, 0,
+    //               (SL_STYLE_FILL | SL_STYLE_BACKG_FILL | SL_STYLE_OUTLINE |
+    //               SL_STYLE_TEXT | SL_STYLE_BACKG_TEXT),
+    //              ClrGray, ClrBlack, ClrSilver, ClrWhite, ClrWhite,
+    //              &g_sFontCm20, "0", 0, 0, OnSliderLimitLow);
                 
     Slider(g_sSliderLimitsHigh, 0, 0, 0,
                  &g_sKentec320x240x16_SSD2119, 180, 150, 110, 30, 0, 15, 15,
@@ -352,7 +352,7 @@ RectangularButton(g_sNext, 0, 0, 0, &g_sKentec320x240x16_SSD2119, 270, 190,
 // The number of panels.
 //
 //*****************************************************************************
-#define NUM_PANELS              5//(sizeof(g_psPanels) / sizeof(g_psPanels[0]))
+#define NUM_PANELS              6//(sizeof(g_psPanels) / sizeof(g_psPanels[0]))
 
 
 //*****************************************************************************
@@ -367,7 +367,8 @@ char *g_pcPanei32Names[] =
     "     Motor control     ",
     "     Motor data     ",
     "     Sensor control     ",
-    "     Sensor data     "
+    "     Sensor data     ",
+    "     FOR DEMO     "
 };
 
 
@@ -442,7 +443,7 @@ OnSliderSpeed(tWidget *psWidget, int32_t i32Value)
         // WidgetPaint((tWidget *)&g_sSliderValueCanvas);
     if(motorState)
     {
-        UARTprintf("Printslider\n");
+        //UARTprintf("Printslider\n");
         EXTERNAL_SET_RPM(i32Value);
     }
 
@@ -453,29 +454,29 @@ OnSliderSpeed(tWidget *psWidget, int32_t i32Value)
 }
 
 //Slider for low limit
-int32_t limitLow = 0;
+//int32_t limitLow = 0;
 int32_t limitHigh = 15;
-void
-OnSliderLimitLow(tWidget *psWidget, int32_t i32Value)
-{
-    //static char pcCanvasText[5];
-    static char pcSliderText[5];
+// void
+// OnSliderLimitLow(tWidget *psWidget, int32_t i32Value)
+// {
+//     //static char pcCanvasText[5];
+//     static char pcSliderText[5];
     
 
 
-        // usprintf(pcCanvasText, "%3d%%", i32Value);
-        // CanvasTextSet(&g_sSliderValueCanvas, pcCanvasText);
-        // WidgetPaint((tWidget *)&g_sSliderValueCanvas);
+//         // usprintf(pcCanvasText, "%3d%%", i32Value);
+//         // CanvasTextSet(&g_sSliderValueCanvas, pcCanvasText);
+//         // WidgetPaint((tWidget *)&g_sSliderValueCanvas);
 
-    if(i32Value <= limitHigh - 1)
-    {
-        limitLow = i32Value;
-        usprintf(pcSliderText, "%3d", i32Value);
-        SliderTextSet(&g_sSliderLimitsLow, pcSliderText);
-        WidgetPaint((tWidget *)&g_sSliderLimitsLow);
-    }
+//     if(i32Value <= limitHigh - 1)
+//     {
+//         limitLow = i32Value;
+//         usprintf(pcSliderText, "%3d", i32Value);
+//         SliderTextSet(&g_sSliderLimitsLow, pcSliderText);
+//         WidgetPaint((tWidget *)&g_sSliderLimitsLow);
+//     }
 
-}
+// }
 
 //Slider for hihg limit 
 void
@@ -491,13 +492,13 @@ OnSliderLimitHigh(tWidget *psWidget, int32_t i32Value)
         // WidgetPaint((tWidget *)&g_sSliderValueCanvas);
 
 
-    if(limitLow + 1 <= i32Value)
-    {
+    //if(limitLow + 1 <= i32Value)
+    //{
         limitHigh = i32Value;
         usprintf(pcSliderText, "%3d", i32Value);
         SliderTextSet(&g_sSliderLimitsHigh, pcSliderText);
         WidgetPaint((tWidget *)&g_sSliderLimitsHigh);
-    }
+    //}
 }
 
 int32_t limitAcc = 6000;
@@ -521,6 +522,7 @@ OnSliderLimitAcc(tWidget *psWidget, int32_t i32Value)
 
 }
 
+bool DEMO = 0;
 //Back button
 void
 OnPrevious(tWidget *psWidget)
@@ -562,14 +564,14 @@ OnPrevious(tWidget *psWidget)
             WidgetRemove((tWidget *)(&g_sMotorOn));
             WidgetRemove((tWidget *)(&g_sMotorOff));
             WidgetRemove((tWidget *)(&g_sSliderSpeed));
-            WidgetRemove((tWidget *)(&g_sSliderLimitsLow));
+            //WidgetRemove((tWidget *)(&g_sSliderLimitsLow));
             WidgetRemove((tWidget *)(&g_sSliderLimitsHigh));
             OnIntroPaint();
             break;
         case 1:
             MotorOnOff();
             MotorSpeed();
-            MotorLimitLow();
+            //MotorLimitLow();
             MotorLimitHigh();
             MotorPlot = false;
             //WidgetRemove((tWidget *)(&g_sSliderAcc));
@@ -598,6 +600,7 @@ OnPrevious(tWidget *psWidget)
             SensorPlot = true; 
             countlux = 0;
             countacc = 0;
+            DEMO = false;
             break;
         case 5:
 
@@ -698,7 +701,7 @@ OnNext(tWidget *psWidget)
         case 1:
             MotorOnOff();
             MotorSpeed();
-            MotorLimitLow();
+            //MotorLimitLow();
             MotorLimitHigh();
             break;
         case 2:
@@ -706,7 +709,7 @@ OnNext(tWidget *psWidget)
             WidgetRemove((tWidget *)(&g_sMotorOn));
             WidgetRemove((tWidget *)(&g_sMotorOff));
             WidgetRemove((tWidget *)(&g_sSliderSpeed));
-            WidgetRemove((tWidget *)(&g_sSliderLimitsLow));
+            //WidgetRemove((tWidget *)(&g_sSliderLimitsLow));
             WidgetRemove((tWidget *)(&g_sSliderLimitsHigh));
             //WidgetRemove((tWidget *)(&g_sSliderAcc));
             MotorData = true;
@@ -732,7 +735,7 @@ OnNext(tWidget *psWidget)
             countacc = 0;
             break;
         case 5:
-            
+            DEMO = true;
             break;
     }
     //
@@ -779,7 +782,7 @@ void OnIntroPaint(void)
     GrStringDraw(&sContext, "Press + or - to navigate pages.", -1, 0, 50, 0);
     GrStringDraw(&sContext, "Page 1: Motor control. S = speed,", -1, 0,
                  74, 0);
-    GrStringDraw(&sContext, "L = low limit, H = high limit.", -1, 0,
+    GrStringDraw(&sContext, "H = high power limit.", -1, 0,
                  92, 0);
     GrStringDraw(&sContext, "Page 2: Motor data plotting.", -1, 0,
                  110, 0);
@@ -833,22 +836,22 @@ void MotorSpeed(void)
         GrStringDraw(&sContext, "S:", -1, 160, 55, 0);
 }
 
-void MotorLimitLow(void)
-{
+// void MotorLimitLow(void)
+// {
 
-        //WidgetRemove((tWidget *)(&g_sMotorOff));
-        WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sSliderLimitsLow);
-        // PushButtonImageOn(&g_sSliderLimitsLow);
-        // PushButtonFillOn(&g_sSliderLimitsLow);
-        // PushButtonTextOn(&g_sSliderLimitsLow);
-        // PushButtonTextOn(&g_sSliderLimitsLow);
-        // PushButtonFillOn(&g_sSliderLimitsLow);
-        WidgetPaint((tWidget *)&g_sSliderLimitsLow);
-        GrContextFontSet(&sContext, &g_sFontCm20);
-        GrContextForegroundSet(&sContext, ClrSilver);
-        GrStringDraw(&sContext, "L:", -1, 160, 105, 0);
+//         //WidgetRemove((tWidget *)(&g_sMotorOff));
+//         WidgetAdd(WIDGET_ROOT, (tWidget *)&g_sSliderLimitsLow);
+//         // PushButtonImageOn(&g_sSliderLimitsLow);
+//         // PushButtonFillOn(&g_sSliderLimitsLow);
+//         // PushButtonTextOn(&g_sSliderLimitsLow);
+//         // PushButtonTextOn(&g_sSliderLimitsLow);
+//         // PushButtonFillOn(&g_sSliderLimitsLow);
+//         WidgetPaint((tWidget *)&g_sSliderLimitsLow);
+//         GrContextFontSet(&sContext, &g_sFontCm20);
+//         GrContextForegroundSet(&sContext, ClrSilver);
+//         GrStringDraw(&sContext, "L:", -1, 160, 105, 0);
     
-}
+// }
 
 void MotorLimitHigh(void)
 {
@@ -944,7 +947,7 @@ TaskHandle_t xBMI160ReadHandle;
 static void prvConfigureOPT3001Sensor( void );
 // Configuration for the HW Timer 6A and 7A
 static void prvConfigureHWTimer6A( void );
-static void prvConfigureHWTimer7A( void );
+//static void prvConfigureHWTimer7A( void );
 // Task for reading sensors
 static void vOPT3001Read( void *pvParameters );
 static void xBMI160Read( void *pvParameters );
@@ -1211,7 +1214,7 @@ void vQueueTask( void )
     // Create the task to read the optical sensor
     xTaskCreate( vOPT3001Read,
                  "Opt 3001 Read/Pub Task",
-                 configMINIMAL_STACK_SIZE*3,
+                 configMINIMAL_STACK_SIZE*2,
                  NULL,
                  tskIDLE_PRIORITY + 1,
                  &xOpt3001ReadHandle);
@@ -1219,7 +1222,7 @@ void vQueueTask( void )
     // Create the task to read the IMU sensor
     xTaskCreate( xBMI160Read,
                  "IMU Read/Pub Task",
-                 configMINIMAL_STACK_SIZE*3,
+                 configMINIMAL_STACK_SIZE*2,
                  NULL,
                  tskIDLE_PRIORITY + 1,
                  &xBMI160ReadHandle);
@@ -1252,27 +1255,27 @@ void vQueueTask( void )
                 NULL );
 
 
-    xTaskCreate(prvWatchdogTask,
-                "watchdog",
-                configMINIMAL_STACK_SIZE,
-                NULL,
-                tskIDLE_PRIORITY + 1,
-                NULL );
-
-
-    // xTaskCreate(prvMotorPrint,
-    //             "MotorPrint",
-    //             configMINIMAL_STACK_SIZE*3,
+    // xTaskCreate(prvWatchdogTask,
+    //             "watchdog",
+    //             configMINIMAL_STACK_SIZE,
     //             NULL,
     //             tskIDLE_PRIORITY + 1,
     //             NULL );
 
-    xTaskCreate(prvPID,
-                "PID",
-                configMINIMAL_STACK_SIZE*3,
-                NULL,
-                tskIDLE_PRIORITY + 1,
-                NULL );
+
+    // xTaskCreate(prvMotorPrint,
+    //             "MotorPrint",
+    //             configMINIMAL_STACK_SIZE,
+    //             NULL,
+    //             tskIDLE_PRIORITY + 1,
+    //             NULL );
+
+    // xTaskCreate(prvPID,
+    //             "PID",
+    //             configMINIMAL_STACK_SIZE*3,
+    //             NULL,
+    //             tskIDLE_PRIORITY + 1,
+    //             NULL );
 
     // xTaskCreate(prvMotorRun,
     //             "MotorRun",
@@ -1287,118 +1290,51 @@ void vQueueTask( void )
 
 
 
-static void prvWatchdogTask(void *pvParameters)
-{
-    uint32_t lastAliveFlag = 0;
-    bool test = 0;
-    for (;;)
-    {
-        vTaskDelay(pdMS_TO_TICKS(5000));  // Check every 1000 m
-        if (motorTaskAliveFlag == lastAliveFlag) {
-            // If the flag has not changed, assume the task has died
-            UARTprintf("ERROR: Motor task has stopped running!\n");
-        } else {
-            // Update the last known flag value
-            lastAliveFlag = motorTaskAliveFlag;
-        }
-        // if(test == 0)
-        // {
-        //     test = 1;
-        //     EXTERNAL_SET_RPM(1000);
-        // }else{
-        //     EXTERNAL_SET_RPM(2000);
-        //     test = 0;
-        // }
-    }
-}
+// static void prvWatchdogTask(void *pvParameters)
+// {
+//     uint32_t lastAliveFlag = 0;
+//     bool test = 0;
+//     for (;;)
+//     {
+//         vTaskDelay(pdMS_TO_TICKS(5000));  // Check every 1000 m
+//         if (motorTaskAliveFlag == lastAliveFlag) {
+//             // If the flag has not changed, assume the task has died
+//             UARTprintf("ERROR: Motor task has stopped running!\n");
+//         } else {
+//             // Update the last known flag value
+//             lastAliveFlag = motorTaskAliveFlag;
+//         }
+//         // if(test == 0)
+//         // {
+//         //     test = 1;
+//         //     EXTERNAL_SET_RPM(1000);
+//         // }else{
+//         //     EXTERNAL_SET_RPM(2000);
+//         //     test = 0;
+//         // }
+//     }
+// }
 
-static void prvPID(void *pvParameters)
-{
+// static void prvPID(void *pvParameters)
+// {
 
-    for (;;)
-    {
-    if(xSemaphoreTake(xPIDControllerSemaphore, portMAX_DELAY) == pdTRUE)
-    {
-        if (motor_state.Estop_condition == Disabled) {
-            // Calculate error
-            int error = motor_state.set_rpm - motor_state.current_rpm;
+//     for (;;)
+//     {
+//     if(xSemaphoreTake(xPIDControllerSemaphore, portMAX_DELAY) == pdTRUE)
+//     {
+        
+//     }
+//     }
+// }
 
-            // Update integral error
-            integral_error += error * TIMER_INTERVAL; // Multiply by dt if available
-            if(integral_error > INTEGRAL_MAX)
-            {
-                integral_error = INTEGRAL_MAX;
-            }
-            if(integral_error < INTEGRAL_MAX*-1)
-            {
-                integral_error = INTEGRAL_MAX*-1;
-            }
-            motor_state.controller_error = integral_error;
+// static void prvMotorRun(void *pvParameters)
+// {
 
-            // Calculate PID output (scaled appropriately)
-            float output = Kp * error + Ki * integral_error;
+//     for (;;)
+//     {
 
-            // Scale PID output to match the duty cycle range
-            // Assuming the maximum motor RPM is 4500 and maximum duty is 45, the scaling factor is 0.01
-            float pid_duty = output * 0.01;
-
-            if (pid_duty > MAX_DELTA_DUTY_NORMAL) {
-                pid_duty = MAX_DELTA_DUTY_NORMAL;
-            }
-
-            //set our accelertion limits
-            // every 10ms the maximum adjust is 0.05 duty cycle. we have 100 rpm per duty value. therefore 1s/10ms = 100.
-            // then (0.05 duty change) * 100 (timer ticks in 1 second) = 5duty change per second
-            // we have 100 rpm per duty spo 5 duty change per second * 100 = [[[ 500 rpm/s ]]] 
-            if (pid_duty > 0.05){
-                pid_duty = 0.05;
-            }
-            else if (pid_duty < -0.05){
-                pid_duty = -0.05;
-            }
-
-            //add our adjusted duty to the controller 
-            motor_state.controller_ouput += pid_duty; 
-
-            // Ensure controller output is within valid range
-            if (motor_state.controller_ouput < 1) {
-                motor_state.controller_ouput = 1;
-            } else if (motor_state.controller_ouput > 45) {
-                motor_state.controller_ouput = 45;
-            }
-
-            // Apply the output as a new duty cycle
-            //convert the float to uint16_t and write to the motor
-            motor_state.duty_value = (uint16_t)motor_state.controller_ouput;
-
-            setDuty(motor_state.duty_value);
-        }
-
-        // Handle Estop condition
-        // similar calculation as above except we want 1000rpm/s so double the max duty change.
-        // this will be constant acceleration.
-        if (motor_state.Estop_condition == Enabled) {
-
-            if (motor_state.duty_value > 1){
-                motor_state.duty_value -= 0.1;
-                setDuty(motor_state.duty_value);
-            }
-            else{
-                motorStop(true);
-            }
-        }
-    }
-    }
-}
-
-static void prvMotorRun(void *pvParameters)
-{
-
-    for (;;)
-    {
-
-    }
-}
+//     }
+// }
 
 uint32_t hour = 2;
 uint32_t hour2 = 1;
@@ -1407,15 +1343,36 @@ uint32_t minut2 = 1;
 uint32_t second = 0;
 uint32_t second2 = 0;
 uint32_t milis = 0;
+
+//int timer6 = 0;
+int timer3 = 0;
 void xTimer1IntHandler(void) {
-    BaseType_t xOptTaskWoken;
-    xOptTaskWoken = pdFALSE;
+    //BaseType_t xOptTaskWoken;
+    //xOptTaskWoken = pdFALSE;
     milis++;
+    //timer6++;
+    timer3++;
     // Clear the timer interrupt
     MAP_TimerIntClear(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
  //uxQueueSpacesAvailable(xOptDataQueue) == 0  &&    
-    xSemaphoreGiveFromISR( xOptSemaphore, &xOptTaskWoken );
+    //xSemaphoreGiveFromISR( xOptSemaphore, &xOptTaskWoken );
+    //UARTprintf("%d\n", timer6);
 
+    if(timer3 == 50)
+    {
+        //UARTprintf("%d\n", timer3);
+        timer3 = 0;
+        BaseType_t xopt = pdFALSE;
+        xSemaphoreGiveFromISR(xOPT3001ReadSemaphore, &xopt);
+        portYIELD_FROM_ISR(xopt);
+    }
+    //if(timer6 == 1)
+    //{
+        //timer6 = 0;
+        // BaseType_t xAcc = pdFALSE;
+        // xSemaphoreGiveFromISR(xBMI160ReadSemaphore, &xAcc);
+        // portYIELD_FROM_ISR(xAcc);
+    //}
 }
 
 
@@ -1427,7 +1384,7 @@ void plotMotorSpeed(uint32_t speed){
         {
             GrContextFontSet(&sContext, &g_sFontCm20);
             GrContextForegroundSet(&sContext, ClrWhite);
-            GrStringDraw(&sContext, "Speed (rpm):", -1, 35, 25, 0);
+            GrStringDraw(&sContext, "Speed (RPM):", -1, 35, 25, 0);
             MotorData = false;
             //Plot for speed
             sRect.i16XMin = 10;
@@ -1457,6 +1414,7 @@ void plotMotorSpeed(uint32_t speed){
         //UARTprintf("Data: %5d\n", data);
         if(speed < 130 && speed >= 0)
         {
+            GrContextForegroundSet(&sContext, ClrWhite);
             GrCircleFill(&sContext, 15+countspeed,178-speed,1);
             //UARTprintf("count speed %d\n", countspeed);
             countspeed = countspeed + 1;
@@ -1473,7 +1431,7 @@ void plotMotorSpeed(uint32_t speed){
             }
         }
 }
-
+int luxLim = 0;
 void plotSensorLux(uint32_t lux){
 
         if(SensorData)
@@ -1481,10 +1439,14 @@ void plotSensorLux(uint32_t lux){
             
             GrContextFontSet(&sContext, &g_sFontCm20);
             GrContextForegroundSet(&sContext, ClrWhite);
-            GrStringDraw(&sContext, "Light (lux):", -1, 35, 25, 0);
+            GrStringDraw(&sContext, "Light (LUX):", -1, 35, 25, 0);
+
+            luxLim = 0 + (((5 - 0)*(130 - 0))/(200-0));
+            GrContextForegroundSet(&sContext, ClrRed);
+            GrLineDraw(&sContext, 11, 178-luxLim, 150, 178-luxLim);
 
             SensorData = false;
-            //Plot for speed
+            //Plot for lux
             sRect.i16XMin = 10;
             sRect.i16YMin = 50;
             sRect.i16XMax = 11;
@@ -1505,13 +1467,13 @@ void plotSensorLux(uint32_t lux){
 
         }
 
-        lux = 0 + (((lux - 0)*(130 - 0))/(2000-0));
+        lux = 0 + (((lux - 0)*(130 - 0))/(200-0));
         //lux = 0 + ((200 - 0)/(2000-0)) * (speed - 0);
         //acc = 0 + ((200 - 0)/(2000-200)) * (power - 0);
         //UARTprintf("Data: %5d\n", data);
         if(lux < 130 && lux >= 0)
         {
-            
+            GrContextForegroundSet(&sContext, ClrWhite);
             GrCircleFill(&sContext, 15 + countlux,178-lux,1);
             countlux = countlux + 1;
             if((countlux+15) >= 150)
@@ -1523,18 +1485,25 @@ void plotSensorLux(uint32_t lux){
                 sRect.i16YMax = 180;
                 GrContextForegroundSet(&sContext, ClrBlack);
                 GrRectFill(&sContext, &sRect);  
+                luxLim = 0 + (((5 - 0)*(130 - 0))/(200-0));
+                GrContextForegroundSet(&sContext, ClrRed);
+                GrLineDraw(&sContext, 11, 178-luxLim, 150, 178-luxLim);
             }
         }
 }
-
+int limit = 0;
 void plotMotorPower(uint32_t power){
 
 
         if(MotorDatapower)
         {
+            limit = 0 + (((limitHigh - 0)*(130 - 0))/(15-0));
+            GrContextForegroundSet(&sContext, ClrRed);
+            GrLineDraw(&sContext, 160, 178-limit, 299, 178-limit);
+
             GrContextFontSet(&sContext, &g_sFontCm20);
             GrContextForegroundSet(&sContext, ClrWhite);
-            GrStringDraw(&sContext, "Power (watts):", -1, 180, 25, 0);
+            GrStringDraw(&sContext, "Power (Watts):", -1, 180, 25, 0);
             //GrStringDraw(&sContext, "0", -1, 155, 185, 0);
             //GrStringDraw(&sContext, "15", -1, 155, 45, 0);
             MotorDatapower = false;
@@ -1563,7 +1532,7 @@ void plotMotorPower(uint32_t power){
         power = 0 + (((power - 0)*(130 - 0))/(15-0));
         if(power < 130 && power >= 0)
         {
-            
+            GrContextForegroundSet(&sContext, ClrWhite);
             GrCircleFill(&sContext, 165+countpower,178-power,1);
             countpower = countpower + 1;
             if((countpower+15) >= 150)
@@ -1575,11 +1544,14 @@ void plotMotorPower(uint32_t power){
                 GrContextForegroundSet(&sContext, ClrBlack);
                 GrRectFill(&sContext, &sRect);
                 countpower = 0;  
+                limit = 0 + (((limitHigh - 0)*(130 - 0))/(15-0));
+                GrContextForegroundSet(&sContext, ClrRed);
+                GrLineDraw(&sContext, 160, 178-limit, 299, 178-limit);
                 //UARTprintf("power forfra %d\n", countpower);
             }
         }
 }
-
+int limitA = 0;
 void plotSensorAcc(uint32_t acc){
 
         if(SensorDataacc)
@@ -1587,11 +1559,13 @@ void plotSensorAcc(uint32_t acc){
             
             GrContextFontSet(&sContext, &g_sFontCm20);
             GrContextForegroundSet(&sContext, ClrWhite);
-            GrStringDraw(&sContext, "Acc (whatever):", -1, 180, 25, 0);
+            GrStringDraw(&sContext, "Acc (IMU):", -1, 180, 25, 0);
             //GrStringDraw(&sContext, "0", -1, 155, 185, 0);
             //GrStringDraw(&sContext, "2000", -1, 150, 45, 10);
             SensorDataacc = false;
-
+            limitA = 0 + (((limitAcc - 0)*(130 - 0))/(6000-0));
+            GrContextForegroundSet(&sContext, ClrRed);
+            GrLineDraw(&sContext, 160, 178-limitA, 299, 178-limitA);
             //PLot for Acc
             sRect.i16XMin = 160;
             sRect.i16YMin = 50;
@@ -1620,6 +1594,7 @@ void plotSensorAcc(uint32_t acc){
 
         if(acc < 130 && acc >= 0)
         {
+            GrContextForegroundSet(&sContext, ClrWhite);
             GrCircleFill(&sContext, 165 + countacc,178-acc,1);
             countacc = countacc + 1;
             if((countacc+15) >= 150)
@@ -1631,6 +1606,10 @@ void plotSensorAcc(uint32_t acc){
                 sRect.i16YMax = 180;
                 GrContextForegroundSet(&sContext, ClrBlack);
                 GrRectFill(&sContext, &sRect);  
+
+                limitA = 0 + (((limitAcc - 0)*(130 - 0))/(6000-0));
+                GrContextForegroundSet(&sContext, ClrRed);
+                GrLineDraw(&sContext, 160, 178-limitA, 299, 178-limitA);
 
             }
         }
@@ -1765,6 +1744,74 @@ void plotDay(void){
 }
 
 
+void DEMOPlotSP(uint32_t sp)
+{
+    sRect.i16XMin = 5;
+    sRect.i16YMin = 25;
+    sRect.i16XMax = 100;
+    sRect.i16YMax = 60;
+    GrContextForegroundSet(&sContext, ClrBlack);
+    GrRectFill(&sContext, &sRect);
+
+    char mo[35];
+    usprintf(mo,"Speed: %d", sp);
+    GrContextFontSet(&sContext, &g_sFontCm20);
+    GrContextForegroundSet(&sContext, ClrWhite);
+    GrStringDraw(&sContext, mo, -1, 10, 40, 0);
+
+}
+
+void DEMOPlotPO(uint32_t po)
+{
+    sRect.i16XMin = 140;
+    sRect.i16YMin = 25;
+    sRect.i16XMax = 250;
+    sRect.i16YMax = 60;
+    GrContextForegroundSet(&sContext, ClrBlack);
+    GrRectFill(&sContext, &sRect);
+
+    char mo[35];
+    usprintf(mo,"Power: %d", po);
+    GrContextFontSet(&sContext, &g_sFontCm20);
+    GrContextForegroundSet(&sContext, ClrWhite);
+    GrStringDraw(&sContext, mo, -1, 150, 40, 0);
+
+}
+
+void DEMOPlotLU(uint32_t lux)
+{
+    sRect.i16XMin = 5;
+    sRect.i16YMin = 140;
+    sRect.i16XMax = 100;
+    sRect.i16YMax = 180;
+    GrContextForegroundSet(&sContext, ClrBlack);
+    GrRectFill(&sContext, &sRect);
+
+    char mo[35];
+    usprintf(mo,"LUX: %d", lux);
+    GrContextFontSet(&sContext, &g_sFontCm20);
+    GrContextForegroundSet(&sContext, ClrWhite);
+    GrStringDraw(&sContext, mo, -1, 10, 150, 0);
+}
+
+void DEMOPlotAC(uint32_t ac)
+{
+    sRect.i16XMin = 140;
+    sRect.i16YMin = 140;
+    sRect.i16XMax = 250;
+    sRect.i16YMax = 180;
+    GrContextForegroundSet(&sContext, ClrBlack);
+    GrRectFill(&sContext, &sRect);
+
+    char mo[35];
+    usprintf(mo,"Acc: %d", ac);
+    GrContextFontSet(&sContext, &g_sFontCm20);
+    GrContextForegroundSet(&sContext, ClrWhite);
+    GrStringDraw(&sContext, mo, -1, 150, 150, 0);
+
+}
+
+
 static void prvDisplay( void *pvParameters )
 {       
 
@@ -1809,8 +1856,7 @@ static void prvDisplay( void *pvParameters )
     GrStringDraw(&sContext, "30/05/24", -1, 240, 2, 0);
     OnIntroPaint();
     bool clockSec = 1;
-    struct AData xReadSpeed;
-    struct AData xReadPower;
+
     for (;;)
     {   
         WidgetMessageQueueProcess();
@@ -1854,138 +1900,159 @@ static void prvDisplay( void *pvParameters )
         {
         //UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
         //UARTprintf("DisplayTask Stack High Water Mark: %u\n", uxHighWaterMark);
-        clockSec = 0;
-        sRect.i16XMin = 160;
-        sRect.i16YMin = 2;
-        sRect.i16XMax = 230;
-        sRect.i16YMax = 20;
-        GrContextForegroundSet(&sContext, ClrDarkBlue);
-        GrRectFill(&sContext, &sRect);
-        char str[35];
-        usprintf(str,"%d%d:%d%d:%d%d", hour2, hour, minut2, minut,second2, second);
-        GrContextForegroundSet(&sContext, ClrWhite);
-        GrContextFontSet(&sContext, &g_sFontCm20);
-            GrStringDraw(&sContext, str, -1, 150,
-                 2, 0);
+            clockSec = 0;
+            sRect.i16XMin = 160;
+            sRect.i16YMin = 2;
+            sRect.i16XMax = 230;
+            sRect.i16YMax = 20;
+            GrContextForegroundSet(&sContext, ClrDarkBlue);
+            GrRectFill(&sContext, &sRect);
+            char str[35];
+            usprintf(str,"%d%d:%d%d:%d%d", hour2, hour, minut2, minut,second2, second);
+            GrContextForegroundSet(&sContext, ClrWhite);
+            GrContextFontSet(&sContext, &g_sFontCm20);
+                GrStringDraw(&sContext, str, -1, 150,
+                    2, 0);
     
         }
         
-        //RPM and Power plotting 
-        if((xQueueReceive(xPowerQueueExternal, &(xPowervalueRecv), ( TickType_t ) 0) == pdPASS))       
+        if(!DEMO)
         {
-            //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
-            //UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
-            // UARTprintf("power: %u\n", xPowervalueRecv.value);
-            if(((xPowervalueRecv.value/1000 <= limitLow) || (xPowervalueRecv.value/1000 >= limitHigh)) && motorState)
-            {
-                //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
-                EXTERNAL_SET_ESTOP();
-                UARTprintf(">Stopped Power\n");
-                motorState = false;
-                if(g_ui32Panel == 1)
-                {
-                    PushButtonImageOff(&g_sMotorOff);
-                    PushButtonFillOff(&g_sMotorOff);
-                    PushButtonTextOff(&g_sMotorOff);
-                    PushButtonTextOff(&g_sMotorOff);
-                    PushButtonFillOff(&g_sMotorOff);
-
-                    PushButtonImageOn(&g_sMotorOn);
-                    PushButtonFillOn(&g_sMotorOn);
-                    PushButtonTextOn(&g_sMotorOn);
-                    PushButtonTextOn(&g_sMotorOn);
-                    PushButtonFillOn(&g_sMotorOn);
-                    WidgetPaint((tWidget *)&g_sMotorOn);
-                }
-            } 
-
-            if(MotorPlot && motorState)
-            {
-                //vTaskDelay(50);
-                //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
-                //UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
-                 //GrFlush(&sContext);
-                plotMotorPower(xPowervalueRecv.value/1000);
-
-            }
-        }
-        if((xQueueReceive(xRPMQueueExternal, &(xRPMvalueRecv), ( TickType_t ) 0) == pdPASS))       
-        {
-            if(MotorPlot && motorState)
+            //RPM and Power plotting 
+            if((xQueueReceive(xPowerQueueExternal, &(xPowervalueRecv), ( TickType_t ) 0) == pdPASS))       
             {
                 //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
                 //UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
-                //GrFlush(&sContext);
-                plotMotorSpeed(xRPMvalueRecv.value);
+                // UARTprintf("power: %u\n", xPowervalueRecv.value);
+                if(((xPowervalueRecv.value/1000 >= limitHigh)) && motorState)
+                {
+                    //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
+                    EXTERNAL_SET_ESTOP();
+                    UARTprintf(">Stopped Power\n");
+                    motorState = false;
+                    if(g_ui32Panel == 1)
+                    {
+                        PushButtonImageOff(&g_sMotorOff);
+                        PushButtonFillOff(&g_sMotorOff);
+                        PushButtonTextOff(&g_sMotorOff);
+                        PushButtonTextOff(&g_sMotorOff);
+                        PushButtonFillOff(&g_sMotorOff);
 
+                        PushButtonImageOn(&g_sMotorOn);
+                        PushButtonFillOn(&g_sMotorOn);
+                        PushButtonTextOn(&g_sMotorOn);
+                        PushButtonTextOn(&g_sMotorOn);
+                        PushButtonFillOn(&g_sMotorOn);
+                        WidgetPaint((tWidget *)&g_sMotorOn);
+                    }
+                } 
+
+                if(MotorPlot && motorState)
+                {
+                    //vTaskDelay(50);
+                    //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
+                    //UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
+                    //GrFlush(&sContext);
+                    plotMotorPower(xPowervalueRecv.value/1000);
+
+                }
+            }
+            if((xQueueReceive(xRPMQueueExternal, &(xRPMvalueRecv), ( TickType_t ) 0) == pdPASS))       
+            {
+                if(MotorPlot && motorState)
+                {
+                    //UARTprintf("power: %u\n", xPowervalueRecv.value/1000);
+                    //UARTprintf("RPM: %u\n", xRPMvalueRecv.value);
+                    //GrFlush(&sContext);
+                    plotMotorSpeed(xRPMvalueRecv.value);
+
+                }
+            }
+
+
+            //Checking opt and acc
+            if((xQueueReceive( xOPT3001Queue, &( xOPT3001Message ), ( TickType_t ) 0 ) == pdPASS))
+            {
+                UARTprintf("Lux recieve:%d\n", xOPT3001Message.filteredLux);
+                //UARTprintf(">Acc:%d\n", xBMI160Message.ulfilteredAccel);
+
+                if(xOPT3001Message.filteredLux <= 5)
+                {
+                    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, GPIO_PIN_0);
+                }else{
+                    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, 0x0);
+                }
+
+
+                if(SensorPlot)
+                {
+                    plotSensorLux(xOPT3001Message.filteredLux);
+                }
+                if(ligthData)
+                {
+                    if(xOPT3001Message.filteredLux <=  5 && dayChange)
+                    {
+                        dayChange = 0;
+                        nightChange = 1;
+                        plotNight();
+                    }
+                    if(xOPT3001Message.filteredLux >  5 && nightChange)
+                    {
+                        nightChange = 0;
+                        dayChange = 1;
+                        plotDay();
+                    }
+
+                }
+            }
+            if((xQueueReceive( xBMI160Queue, &( xBMI160Message), ( TickType_t ) 0 ) == pdPASS))
+            {
+                //UARTprintf(">Lux:%d\n", xOPT3001Message.filteredLux);
+                //UARTprintf(">Acc:%d\n", xBMI160Message.ulfilteredAccel);
+
+                if(xBMI160Message.ulfilteredAccel >= limitAcc && motorState)
+                {
+                    EXTERNAL_SET_ESTOP();
+                    UARTprintf(">Stopped ACC\n");
+                    motorState = false;
+                    if(g_ui32Panel == 1)
+                    {
+                        PushButtonImageOff(&g_sMotorOff);
+                        PushButtonFillOff(&g_sMotorOff);
+                        PushButtonTextOff(&g_sMotorOff);
+                        PushButtonTextOff(&g_sMotorOff);
+                        PushButtonFillOff(&g_sMotorOff);
+
+                        PushButtonImageOn(&g_sMotorOn);
+                        PushButtonFillOn(&g_sMotorOn);
+                        PushButtonTextOn(&g_sMotorOn);
+                        PushButtonTextOn(&g_sMotorOn);
+                        PushButtonFillOn(&g_sMotorOn);
+                        WidgetPaint((tWidget *)&g_sMotorOn);
+                    }
+                } 
+                if(SensorPlot)
+                {
+                    plotSensorAcc(xBMI160Message.ulfilteredAccel);
+                }
             }
         }
-
-
-        //Checking opt and acc
-        if((xQueueReceive( xOPT3001Queue, &( xOPT3001Message ), ( TickType_t ) 0 ) == pdPASS))
-        {
-            //UARTprintf(">Lux:%d\n", xOPT3001Message.filteredLux);
-            //UARTprintf(">Acc:%d\n", xBMI160Message.ulfilteredAccel);
-
-            if(xOPT3001Message.filteredLux <= 5)
+        else{
+            if((xQueueReceive(xRPMQueueExternal, &(xRPMvalueRecv), ( TickType_t ) 0) == pdPASS))
             {
-                GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, GPIO_PIN_0);
-            }else{
-                GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, 0x0);
+                DEMOPlotSP(xRPMvalueRecv.value);
             }
-
-
-            if(SensorPlot)
+            if((xQueueReceive(xPowerQueueExternal, &(xPowervalueRecv), ( TickType_t ) 0) == pdPASS))
             {
-                plotSensorLux(xOPT3001Message.filteredLux);
+                DEMOPlotPO(xPowervalueRecv.value/1000);
             }
-            if(ligthData)
+            if((xQueueReceive( xOPT3001Queue, &( xOPT3001Message ), ( TickType_t ) 0 ) == pdPASS))
             {
-                if(xOPT3001Message.filteredLux <=  5 && dayChange)
-                {
-                    dayChange = 0;
-                    nightChange = 1;
-                    plotNight();
-                }
-                if(xOPT3001Message.filteredLux >  5 && nightChange)
-                {
-                    nightChange = 0;
-                    dayChange = 1;
-                    plotDay();
-                }
-
+                DEMOPlotLU(xOPT3001Message.filteredLux);
             }
-        }
-        if((xQueueReceive( xBMI160Queue, &( xBMI160Message), ( TickType_t ) 0 ) == pdPASS))
-        {
-            //UARTprintf(">Lux:%d\n", xOPT3001Message.filteredLux);
-            //UARTprintf(">Acc:%d\n", xBMI160Message.ulfilteredAccel);
-
-            if(xBMI160Message.ulfilteredAccel >= limitAcc && motorState)
+            if((xQueueReceive( xBMI160Queue, &( xBMI160Message), ( TickType_t ) 0 ) == pdPASS))
             {
-                EXTERNAL_SET_ESTOP();
-                UARTprintf(">Stopped ACC\n");
-                motorState = false;
-                if(g_ui32Panel == 1)
-                {
-                    PushButtonImageOff(&g_sMotorOff);
-                    PushButtonFillOff(&g_sMotorOff);
-                    PushButtonTextOff(&g_sMotorOff);
-                    PushButtonTextOff(&g_sMotorOff);
-                    PushButtonFillOff(&g_sMotorOff);
-
-                    PushButtonImageOn(&g_sMotorOn);
-                    PushButtonFillOn(&g_sMotorOn);
-                    PushButtonTextOn(&g_sMotorOn);
-                    PushButtonTextOn(&g_sMotorOn);
-                    PushButtonFillOn(&g_sMotorOn);
-                    WidgetPaint((tWidget *)&g_sMotorOn);
-                }
-            } 
-            if(SensorPlot)
-            {
-                plotSensorAcc(xBMI160Message.ulfilteredAccel);
+                DEMOPlotAC(xBMI160Message.ulfilteredAccel);
             }
         }
     }
@@ -1993,16 +2060,16 @@ static void prvDisplay( void *pvParameters )
 
 
 
-static void prvMotorPrint( void *pvParameters ){
-    while (1){
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        UARTprintf("STATE: %d \n", motor_state.current_state);
-        UARTprintf("RPM NOW: %d \n", motor_state.current_rpm);
-        UARTprintf("RPM SET: %d \n", motor_state.set_rpm);
-        UARTprintf("Controller OUTPUT: %d \n", (int)motor_state.controller_ouput);
-        UARTprintf("Controller ERROR: %d \n", (int)motor_state.controller_error*1000);
-    }
-}
+// static void prvMotorPrint( void *pvParameters ){
+//     while (1){
+//         vTaskDelay(pdMS_TO_TICKS(1000));
+//         UARTprintf("STATE: %d \n", motor_state.current_state);
+//         UARTprintf("RPM NOW: %d \n", motor_state.current_rpm);
+//         UARTprintf("RPM SET: %d \n", motor_state.set_rpm);
+//         UARTprintf("Controller OUTPUT: %d \n", (int)motor_state.controller_ouput);
+//         UARTprintf("Controller ERROR: %d \n", (int)motor_state.controller_error);
+//     }
+// }
 
 /*-----------------------------------------------------------*/
 // Motor State Machine
@@ -2020,7 +2087,7 @@ static void prvMotorTask( void *pvParameters )
     // TODO: Test State Machine
     // Uncommented tested zone above and set if() to true.
     // USE EXTERNAL_SET_RPM and EXTERNAL_SET_ESTOP only to test state machine. all state should be handled internally.
-        UARTprintf("State Machine Loop \n");
+        //UARTprintf("State Machine Loop \n");
     for (;;)
     {
         //UARTprintf("TEsting\n");
@@ -2042,14 +2109,17 @@ static void prvMotorTask( void *pvParameters )
             case Idle:
                 if (motor_state_external.set_rpm > 0) {
 
+                    motor_state.stopped = 0;
                     // Print time in Idle state
-                    UARTprintf("Idle state duration: %d ms\n", time_in_state);
+                    //UARTprintf("Idle state duration: %d ms\n", time_in_state);
 
                     // Set the internal state to our external setpoint
                     motorStart(motor_state_external.set_rpm);
                     // Go to starting state
                     motor_state.current_state = Starting;
                     last_state_change_time = current_time;
+                    // UARTprintf("Starting\n");
+                    // UARTprintf("Idle state duration: %d ms\n", time_in_state);
                 }
                 if (motor_state_external.set_rpm == 0) {
                     // Soft brake to 0 rpm
@@ -2068,16 +2138,17 @@ static void prvMotorTask( void *pvParameters )
                 if (motor_state_external.set_rpm > motor_state.current_rpm * 0.9 &&
                     motor_state_external.set_rpm < motor_state.current_rpm * 1.1) {
                     // Print time in Starting state
-                    UARTprintf("Starting state duration: %d ms\n", time_in_state);
+                    //UARTprintf("Starting state duration: %d ms\n", time_in_state);
 
                     motor_state.current_state = Running;
                     last_state_change_time = current_time;
+                    //UARTprintf("Running");
                 }
-                if (motor_state.stopped == 1 && motor_state.set_rpm != 0) {
-                    UARTprintf("Go IDLE \n");
-                    //zero_rpm_count = 0;
-                    motor_state.current_state = Idle;
-                }
+                // if (motor_state.stopped == 1 && motor_state.set_rpm != 0) {
+                //     UARTprintf("Go IDLE \n");
+                //     //zero_rpm_count = 0;
+                //     motor_state.current_state = Idle;
+                // }
                 break;
 
             case Running:
@@ -2090,7 +2161,7 @@ static void prvMotorTask( void *pvParameters )
                 // We have set current RPM to 0 go IDLE
                 if (motor_state.current_rpm < 80 && motor_state.set_rpm == 0) {
                     // Print time in Running state
-                    UARTprintf("Running state duration: %d ms\n", time_in_state);
+                    //UARTprintf("Running state duration: %d ms\n", time_in_state);
 
                     motorStop(false);
                     motor_state.current_state = Idle;
@@ -2102,7 +2173,7 @@ static void prvMotorTask( void *pvParameters )
 
                 //the motor froze so restart
                 if (motor_state.stopped == 1 && motor_state.set_rpm != 0) {
-                    UARTprintf("Go IDLE \n");
+                   // UARTprintf("Go IDLE \n");
                     //zero_rpm_count = 0;
                     motor_state.current_state = Idle;
                 }
@@ -2111,15 +2182,15 @@ static void prvMotorTask( void *pvParameters )
             case EStop:
                 // Wait until we have safely stopped, then go to IDLE
                 if (motor_state.set_rpm == 0 && motor_state.current_rpm == previous_rpm) {
-                    UARTprintf("Increment Zero count: %d \n", zero_rpm_count);
+                    //UARTprintf("Increment Zero count: %d \n", zero_rpm_count);
                     zero_rpm_count++;
                 }
 
                 if (motor_state.set_rpm == 0 && zero_rpm_count > 15) {
                     // Print time in EStop state
-                    UARTprintf("EStop state duration: %d ms\n", time_in_state);
+                    //UARTprintf("EStop state duration: %d ms\n", time_in_state);
 
-                    UARTprintf("Go IDLE \n");
+                    //UARTprintf("Go IDLE \n");
                     zero_rpm_count = 0;
                     motor_state.current_state = Idle;
                     last_state_change_time = current_time;
@@ -2127,7 +2198,7 @@ static void prvMotorTask( void *pvParameters )
                 break;
             default:
                 // Handle unexpected state
-                UARTprintf("Unexpected state: %d\n", motor_state.current_state);
+                //UARTprintf("Unexpected state: %d\n", motor_state.current_state);
                 motor_state.current_state = Idle;
                 last_state_change_time = current_time;
                 break;
@@ -2243,7 +2314,7 @@ void vRPMRead( void *pvParameters )
     {
         
         // Read the RPM value from the queue
-        if (xQueueReceive(xRPMQueueInternal, &xRPMvalueRecv, 10) == pdPASS) {
+        if (xQueueReceive(xRPMQueueInternal, &xRPMvalueRecv, 0) == pdPASS) {
             // Store the RPM value in the array
             rpm_array[index] = xRPMvalueRecv.value;
             index = (index + 1) % 10;
@@ -2264,10 +2335,10 @@ void vRPMRead( void *pvParameters )
                 sum += rpm_array[i];
             }
             rpm_filtered = sum / 10;
-            if(rpm_filtered == 0)
-            {
-                motor_state.stopped = 1;
-            }
+            // if(rpm_filtered == 0)
+            // {
+            //     motor_state.stopped = 1;
+            // }
         }
         // Send the filtered RPM value to the queue
         xRPMvalueSend.value = rpm_filtered;
@@ -2350,7 +2421,7 @@ static void xBMI160Read( void *pvParameters )
     int16_t int_x = 0x0000;
     int16_t int_y = 0x0000;
     int16_t int_z = 0x0000;
-    bool success;
+    bool success = 0;
 
     // Array for filtered values
     int filter_len = 5;
@@ -2413,7 +2484,7 @@ static void xBMI160Read( void *pvParameters )
                 xQueueSend(xBMI160Queue, &xBMI160Message, 0 );
 
                 // DEBUG
-                UARTprintf(">Accel:%d\n", filtered_accel);
+                //UARTprintf(">Accel:%d\n", filtered_accel);
             }
         }
     }
@@ -2422,15 +2493,16 @@ static void xBMI160Read( void *pvParameters )
 // Periodic Optical Read Task
 static void vOPT3001Read( void *pvParameters )
 {
+    //UARTprintf("I am in opt start\n");
     // Configure Optical Sensor
     // Note if using semaphores for read/write, they need to be called within a RTOS task
     prvConfigureOPT3001Sensor();
-
+    //UARTprintf("I am in opt efter config\n");
     // Semaphore for I2C Config
     xSemaphoreGive(xI2CConfigSemaphore);
 
     // Configure Timer 7A
-    prvConfigureHWTimer7A();
+    //prvConfigureHWTimer7A();
 
     // Vars for OPT3001 sensor read
     float convertedLux = 0;
@@ -2443,14 +2515,16 @@ static void vOPT3001Read( void *pvParameters )
 
     // Queue setup
     struct OPT3001Message xOPT3001Message;
-
+    //UARTprintf("I am in opt\n");
     // Timer Enable
-    TimerEnable(TIMER7_BASE, TIMER_A);
+    //TimerEnable(TIMER7_BASE, TIMER_A);
     for( ;; )
     {
+        //UARTprintf("I am in opt for loop\n");
         // Wait for notification from Timer7A interrupt
         if (xSemaphoreTake(xOPT3001ReadSemaphore, portMAX_DELAY) == pdTRUE)
         {
+            //UARTprintf("I am in opt\n");
             if ( xSemaphoreTake( xI2C0Mutex, portMAX_DELAY ) == pdTRUE )
             {
                 success = sensorOpt3001Read(&rawData);
@@ -2474,7 +2548,7 @@ static void vOPT3001Read( void *pvParameters )
                 xQueueSend(xOPT3001Queue, &xOPT3001Message, 0);
 
                 // DEBUG
-                //UARTprintf(">Lux:%d\n", filtered_lux);
+                UARTprintf(">Lux:%d\n", filtered_lux);
             }
         }
     }
@@ -2490,11 +2564,80 @@ void Timer4IntHandler(void) {
     // Clear the timer interrupt
     TimerIntClear(TIMER4_BASE, TIMER_TIMA_TIMEOUT);
 
-    BaseType_t xHigher = pdFALSE;
+    if (motor_state.Estop_condition == Disabled) {
+            // Calculate error
+            int error = motor_state.set_rpm - motor_state.current_rpm;
 
-    xSemaphoreGiveFromISR(xPIDControllerSemaphore, &xHigher);
+            // Update integral error
+            integral_error += error * TIMER_INTERVAL; // Multiply by dt if available
+            if(integral_error > INTEGRAL_MAX)
+            {
+                integral_error = INTEGRAL_MAX;
+            }
+            if(integral_error < INTEGRAL_MAX*-1)
+            {
+                integral_error = INTEGRAL_MAX*-1;
+            }
+            motor_state.controller_error = integral_error;
 
-    portYIELD_FROM_ISR(xHigher);  
+            // Calculate PID output (scaled appropriately)
+            float output = Kp * error + Ki * integral_error;
+
+            // Scale PID output to match the duty cycle range
+            // Assuming the maximum motor RPM is 4500 and maximum duty is 45, the scaling factor is 0.01
+            float pid_duty = output * 0.01;
+
+            if (pid_duty > MAX_DELTA_DUTY_NORMAL) {
+                pid_duty = MAX_DELTA_DUTY_NORMAL;
+            }
+
+            //set our accelertion limits
+            // every 10ms the maximum adjust is 0.05 duty cycle. we have 100 rpm per duty value. therefore 1s/10ms = 100.
+            // then (0.05 duty change) * 100 (timer ticks in 1 second) = 5duty change per second
+            // we have 100 rpm per duty spo 5 duty change per second * 100 = [[[ 500 rpm/s ]]] 
+            if (pid_duty > 0.05){
+                pid_duty = 0.05;
+            }
+            else if (pid_duty < -0.05){
+                pid_duty = -0.05;
+            }
+
+            //add our adjusted duty to the controller 
+            motor_state.controller_ouput += pid_duty; 
+
+            // Ensure controller output is within valid range
+            if (motor_state.controller_ouput < 1) {
+                motor_state.controller_ouput = 1;
+            } else if (motor_state.controller_ouput > 45) {
+                motor_state.controller_ouput = 45;
+            }
+
+            // Apply the output as a new duty cycle
+            //convert the float to uint16_t and write to the motor
+            motor_state.duty_value = (uint16_t)motor_state.controller_ouput;
+
+            setDuty(motor_state.duty_value);
+        }
+
+        // Handle Estop condition
+        // similar calculation as above except we want 1000rpm/s so double the max duty change.
+        // this will be constant acceleration.
+        if (motor_state.Estop_condition == Enabled) {
+
+            if (motor_state.duty_value > 1){
+                motor_state.duty_value -= 0.1;
+                setDuty(motor_state.duty_value);
+            }
+            else{
+                motorStop(true);
+            }
+        }
+
+    // BaseType_t xHigher = pdFALSE;
+
+    // xSemaphoreGiveFromISR(xPIDControllerSemaphore, &xHigher);
+
+    // portYIELD_FROM_ISR(xHigher);  
 }
 
 void HallSensorHandler(void)
@@ -2699,26 +2842,26 @@ static void prvConfigureHWTimer6A( void )
     IntMasterEnable();
 }
 
-static void prvConfigureHWTimer7A( void )
-{
-    /* The Timer 7 peripheral must be enabled for use. */
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER7);
+// static void prvConfigureHWTimer7A( void )
+// {
+//     /* The Timer 7 peripheral must be enabled for use. */
+//     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER7);
 
-    /* Configure Timer 7 in full-width periodic mode. */
-    TimerConfigure(TIMER7_BASE, TIMER_CFG_PERIODIC);
+//     /* Configure Timer 7 in full-width periodic mode. */
+//     TimerConfigure(TIMER7_BASE, TIMER_CFG_PERIODIC);
 
-    /* Set the Timer 7A load value to run at 2 Hz. */
-    TimerLoadSet(TIMER7_BASE, TIMER_A, configCPU_CLOCK_HZ / 2);
+//     /* Set the Timer 7A load value to run at 2 Hz. */
+//     TimerLoadSet(TIMER7_BASE, TIMER_A, configCPU_CLOCK_HZ / 2);
 
-    /* Configure the Timer 7A interrupt for timeout. */
-    TimerIntEnable(TIMER7_BASE, TIMER_TIMA_TIMEOUT);
+//     /* Configure the Timer 7A interrupt for timeout. */
+//     TimerIntEnable(TIMER7_BASE, TIMER_TIMA_TIMEOUT);
 
-    /* Enable the Timer 7A interrupt in the NVIC. */
-    IntEnable(INT_TIMER7A);
+//     /* Enable the Timer 7A interrupt in the NVIC. */
+//     IntEnable(INT_TIMER7A);
 
-    // /* Enable global interrupts in the NVIC. */
-    IntMasterEnable();
-}
+//     // /* Enable global interrupts in the NVIC. */
+//     IntMasterEnable();
+// }
 
 void xTimer6AHandler( void )
 {
@@ -2745,10 +2888,10 @@ void xTimer7AHandler( void )
 void xI2C2Handler( void )
 {
     I2CMasterIntClear(I2C2_BASE);
-
     // // Check which sensor is using the I2C bus
     if (g_I2C_flag == OPT3001)
     {
+        //UARTprintf("i2c flag OPT\n");
         // Give the semaphore to unblock the OPT3001 I2C read
         BaseType_t xI2C0TaskWoken = pdFALSE;
         xI2C0TaskWoken = pdFALSE;
@@ -2757,6 +2900,7 @@ void xI2C2Handler( void )
     }
     else if (g_I2C_flag == BMI160)
     {
+        //UARTprintf("i2c flag Acc\n");
         // Give the semaphore to unblock
         BaseType_t xI2C0TaskWoken = pdFALSE;
         xI2C0TaskWoken = pdFALSE;
@@ -2792,11 +2936,13 @@ static void prvConfigureOPT3001Sensor( void )
         // // Enable Master interrupt
         IntMasterEnable();
 
+
         if ( xSemaphoreTake( xI2C0Mutex, portMAX_DELAY ) == pdTRUE )     // Take Mutex
         {
-            // sensorOpt3001Init();
+            //sensorOpt3001Init();
             sensorOpt3001Enable(true);
             xSemaphoreGive(xI2C0Mutex);
+            UARTprintf("config if mutex slut\n");
         }
         else
         {
