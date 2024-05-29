@@ -212,7 +212,7 @@ const int INTEGRAL_MAX = 1000;
 // Tasks
 //static void prvOpt( void *pvParameters );
 static void prvDisplay( void *pvParameters );
-static void prvMotorTask( void *pvParameters );
+// static void prvMotorTask( void *pvParameters );
 static void vCurrentRead( void *pvParameters );
 static void vRPMRead( void *pvParameters );
 // static void prvMotorPrint( void *pvParameters );
@@ -1108,26 +1108,26 @@ void vQueueTask( void )
 
     UARTprintf("Creating tasks\n");
 
-    xTaskCreate( prvMotorTask,
-                 "Motor",
-                 configMINIMAL_STACK_SIZE *3,
-                 NULL,
-                 tskIDLE_PRIORITY + 1,
-                 NULL );
+    // xTaskCreate( prvMotorTask,
+    //              "Motor",
+    //              configMINIMAL_STACK_SIZE *3,
+    //              NULL,
+    //              tskIDLE_PRIORITY + 1,
+    //              NULL );
     
-    xTaskCreate( vCurrentRead,
-                 "Current/Power Read",
-                 configMINIMAL_STACK_SIZE*3,
-                 NULL,
-                 tskIDLE_PRIORITY + 1,
-                 &vCurrentReadHandle );
+    // xTaskCreate( vCurrentRead,
+    //              "Current/Power Read",
+    //              configMINIMAL_STACK_SIZE*3,
+    //              NULL,
+    //              tskIDLE_PRIORITY + 1,
+    //              &vCurrentReadHandle );
 
-    xTaskCreate( vRPMRead,
-                 "RPM Read",
-                 configMINIMAL_STACK_SIZE*3,
-                 NULL,
-                 tskIDLE_PRIORITY + 1,
-                 &vRPMReadHandle );
+    // xTaskCreate( vRPMRead,
+    //              "RPM Read",
+    //              configMINIMAL_STACK_SIZE*3,
+    //              NULL,
+    //              tskIDLE_PRIORITY + 1,
+    //              &vRPMReadHandle );
 
     // Create queues for sensor data pub
     xOPT3001Queue = xQueueCreate(1, sizeof(struct OPT3001Message));
@@ -2285,7 +2285,7 @@ void vRPMRead( void *pvParameters )
         // Send the filtered RPM value to the queue
         xRPMvalueSend.value = rpm_filtered;
         xRPMvalueSend.ticks = 0;
-        if (xQueueSend(xRPMQueueExternal, &xRPMvalueSend, 0)) != pdPASS)
+        if ((xQueueSend(xRPMQueueExternal, &xRPMvalueSend, 0)) != pdPASS)
         {
             UARTprintf("RPM Queue send error\n");
         }
